@@ -113,6 +113,20 @@ class AdvertRepository {
     ),
   ];
 
+  // Debug fonksiyonu
+  static void debugPrintAllAdverts() {
+    print('\n=== Mevcut İlanlar ===');
+    for (var ad in _adverts) {
+      print('ID: ${ad.id}');
+      print('Başlık: ${ad.title}');
+      print('Fiyat: ${ad.price} ₺/${ad.unit.displayName}');
+      print('Konum: ${ad.location}');
+      print('Durum: ${ad.isAvailable ? "Aktif" : "Pasif"}');
+      print('------------------------');
+    }
+    print('Toplam İlan Sayısı: ${_adverts.length}\n');
+  }
+
   // İlan ID'sine göre ilanı bul
   static Advertisement? findById(String id) {
     try {

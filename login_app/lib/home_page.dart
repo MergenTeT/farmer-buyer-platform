@@ -126,16 +126,27 @@ class _HomePageState extends State<HomePage> {
             ListView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: 5, // Son 5 ilan
+              itemCount: AdvertRepository.getAllAdverts().length,
               itemBuilder: (context, index) {
                 final adverts = AdvertRepository.getAllAdverts();
-                if (index < adverts.length) {
-                  return AdvertCard(
-                    advertisement: adverts[index],
-                    currentUserEmail: widget.userEmail,
+                if (adverts.isEmpty) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: Text(
+                        'Henüz ilan bulunmuyor.',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ),
                   );
                 }
-                return null;
+                return AdvertCard(
+                  advertisement: adverts[index],
+                  currentUserEmail: widget.userEmail,
+                );
               },
             )
           else
@@ -144,13 +155,24 @@ class _HomePageState extends State<HomePage> {
               physics: const NeverScrollableScrollPhysics(),
               itemBuilder: (context, index) {
                 final searchResults = AdvertRepository.searchAdverts(_searchQuery);
-                if (index < searchResults.length) {
-                  return AdvertCard(
-                    advertisement: searchResults[index],
-                    currentUserEmail: widget.userEmail,
+                if (searchResults.isEmpty) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: Text(
+                        'Aramanızla eşleşen ilan bulunamadı.',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ),
                   );
                 }
-                return null;
+                return AdvertCard(
+                  advertisement: searchResults[index],
+                  currentUserEmail: widget.userEmail,
+                );
               },
               itemCount: AdvertRepository.searchAdverts(_searchQuery).length,
             ),
@@ -158,7 +180,7 @@ class _HomePageState extends State<HomePage> {
       ),
       
       // İlanlar Sayfası
-      const AdvertisementsPage(),
+      AdvertisementsPage(userEmail: widget.userEmail),
 
       // İlan Ekle Sayfası
       CreateAdvertPage(userEmail: widget.userEmail),

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'user_model.dart';
+import 'models/user_model.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -14,6 +14,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  UserType _selectedUserType = UserType.farmer; // Varsayılan olarak çiftçi
 
   String? _validateEmail(String? value) {
     if (value == null || value.isEmpty) {
@@ -52,9 +53,11 @@ class _RegisterPageState extends State<RegisterPage> {
     if (_formKey.currentState!.validate()) {
       // Yeni kullanıcı oluştur
       final newUser = User(
+        id: User.generateId(), // Unique ID oluştur
         name: _nameController.text,
         email: _emailController.text,
         password: _passwordController.text,
+        userType: _selectedUserType, // Seçilen kullanıcı tipini kullan
       );
       
       // Kullanıcıyı kaydet
@@ -129,6 +132,26 @@ class _RegisterPageState extends State<RegisterPage> {
                 ),
                 obscureText: true,
                 validator: _validateConfirmPassword,
+              ),
+              const SizedBox(height: 16),
+              // Kullanıcı tipi seçimi
+              DropdownButtonFormField<UserType>(
+                value: _selectedUserType,
+                decoration: const InputDecoration(
+                  labelText: 'Kullanıcı Tipi',
+                  border: OutlineInputBorder(),
+                ),
+                items: UserType.values.map((type) => DropdownMenuItem(
+                  value: type,
+                  child: Text(type.displayName),
+                )).toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() {
+                      _selectedUserType = value;
+                    });
+                  }
+                },
               ),
               const SizedBox(height: 24),
               ElevatedButton(

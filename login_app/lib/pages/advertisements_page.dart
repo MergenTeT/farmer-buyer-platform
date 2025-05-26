@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import '../models/advertisement.dart';
+import 'advert_detail_page.dart';
 
 class AdvertisementsPage extends StatefulWidget {
-  const AdvertisementsPage({super.key});
+  final String userEmail;
+  
+  const AdvertisementsPage({
+    super.key,
+    required this.userEmail,
+  });
 
   @override
   State<AdvertisementsPage> createState() => _AdvertisementsPageState();
@@ -47,7 +53,10 @@ class _AdvertisementsPageState extends State<AdvertisementsPage> with SingleTick
             controller: _tabController,
             children: ProductCategory.values.map((category) {
               final adverts = AdvertRepository.getAdvertsByCategory(category);
-              return AdvertListView(advertisements: adverts);
+              return AdvertListView(
+                advertisements: adverts,
+                userEmail: widget.userEmail,
+              );
             }).toList(),
           ),
         ),
@@ -58,10 +67,12 @@ class _AdvertisementsPageState extends State<AdvertisementsPage> with SingleTick
 
 class AdvertListView extends StatelessWidget {
   final List<Advertisement> advertisements;
+  final String userEmail;
 
   const AdvertListView({
     super.key,
     required this.advertisements,
+    required this.userEmail,
   });
 
   @override
@@ -77,7 +88,10 @@ class AdvertListView extends StatelessWidget {
       itemCount: advertisements.length,
       itemBuilder: (context, index) {
         final advert = advertisements[index];
-        return AdvertCard(advertisement: advert);
+        return AdvertCard(
+          advertisement: advert,
+          userEmail: userEmail,
+        );
       },
     );
   }
@@ -85,10 +99,12 @@ class AdvertListView extends StatelessWidget {
 
 class AdvertCard extends StatelessWidget {
   final Advertisement advertisement;
+  final String userEmail;
 
   const AdvertCard({
     super.key,
     required this.advertisement,
+    required this.userEmail,
   });
 
   @override
@@ -176,7 +192,15 @@ class AdvertCard extends StatelessWidget {
                     ),
                     TextButton(
                       onPressed: () {
-                        // TODO: İlan detay sayfasına yönlendir
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => AdvertDetailPage(
+                              advertisement: advertisement,
+                              currentUserEmail: userEmail,
+                            ),
+                          ),
+                        );
                       },
                       child: const Text('Detayları Gör'),
                     ),

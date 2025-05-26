@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'login_page.dart';
 import 'register_page.dart';
-import 'user_model.dart';
+import 'models/user_model.dart';
 import 'pages/create_profile_page.dart';
 import 'home_page.dart';
 import 'pages/advert_detail_page.dart';
@@ -8,7 +9,9 @@ import 'pages/messages_page.dart';
 import 'pages/favorites_page.dart';
 import 'models/advertisement.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await UserRepository.init(); // UserRepository'yi başlat
   runApp(const MyApp());
 }
 

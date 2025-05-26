@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+
 enum UserType {
   farmer('Çiftçi'),
   buyer('Alıcı');
@@ -22,6 +25,29 @@ class User {
     required this.userType,
     this.profile,
   });
+
+  // JSON dönüşümleri için
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'email': email,
+      'password': password,
+      'userType': userType.index,
+      'profile': profile?.toJson(),
+    };
+  }
+
+  factory User.fromJson(Map<String, dynamic> json) {
+    return User(
+      id: json['id'],
+      name: json['name'],
+      email: json['email'],
+      password: json['password'],
+      userType: UserType.values[json['userType']],
+      profile: json['profile'] != null ? UserProfile.fromJson(json['profile']) : null,
+    );
+  }
 
   // Kullanıcı ID'sini getir
   static String generateId() {
@@ -53,6 +79,37 @@ class UserProfile {
     required this.createdAt,
     List<String>? favorites,
   }) : favorites = favorites ?? [];
+
+  // JSON dönüşümleri için
+  Map<String, dynamic> toJson() {
+    return {
+      'phoneNumber': phoneNumber,
+      'city': city,
+      'district': district,
+      'detailedAddress': detailedAddress,
+      'companyName': companyName,
+      'taxNumber': taxNumber,
+      'about': about,
+      'profileImage': profileImage,
+      'createdAt': createdAt.toIso8601String(),
+      'favorites': favorites,
+    };
+  }
+
+  factory UserProfile.fromJson(Map<String, dynamic> json) {
+    return UserProfile(
+      phoneNumber: json['phoneNumber'],
+      city: json['city'],
+      district: json['district'],
+      detailedAddress: json['detailedAddress'],
+      companyName: json['companyName'],
+      taxNumber: json['taxNumber'],
+      about: json['about'],
+      profileImage: json['profileImage'],
+      createdAt: DateTime.parse(json['createdAt']),
+      favorites: List<String>.from(json['favorites']),
+    );
+  }
 
   // Telefon numarası doğrulama
   static bool isValidPhoneNumber(String phone) {
@@ -96,51 +153,166 @@ class TurkishLocations {
 
 // Kullanıcı deposu
 class UserRepository {
-  static final List<User> _users = [];
+  static const String _usersKey = 'users';
+  static List<User>? _users;
+  static SharedPreferences? _prefs;
 
-  static void addUser(User user) {
-    _users.add(user);
+  // SharedPreferences'ı başlat
+  static Future<void> init() async {
+    _prefs = await SharedPreferences.getInstance();
+    await _loadUsers();
+  }
+
+  // Kullanıcıları yükle
+  static Future<void> _loadUsers() async {
+    final prefs = _prefs;
+    if (prefs == null) return;
+
+    final usersJson = prefs.getString(_usersKey);
+    if (usersJson != null) {
+      final usersList = jsonDecode(usersJson) as List;
+      _users = usersList.map((json) => User.fromJson(json)).toList();
+    } else {
+      _users = [
+        User(
+          id: '1',
+          name: 'Test Çiftçi',
+          email: 'test@test.com',
+          password: '123456',
+          userType: UserType.farmer,
+          profile: UserProfile(
+            phoneNumber: '+905551234567',
+            city: 'Antalya',
+            district: 'Kumluca',
+            detailedAddress: 'Test Mahallesi',
+            createdAt: DateTime.now(),
+          ),
+        ),
+        User(
+          id: '2',
+          name: 'Test Alıcı',
+          email: 'alici@test.com',
+          password: '123456',
+          userType: UserType.buyer,
+          profile: UserProfile(
+            phoneNumber: '+905559876543',
+            city: 'İstanbul',
+            district: 'Kadıköy',
+            detailedAddress: 'Test Sokak',
+            createdAt: DateTime.now(),
+          ),
+        ),
+      ];
+      await _saveUsers();
+    }
+  }
+
+  // Kullanıcıları kaydet
+  static Future<void> _saveUsers() async {
+    final prefs = _prefs;
+    if (prefs == null || _users == null) return;
+
+    final usersJson = jsonEncode(_users!.map((user) => user.toJson()).toList());
+    await prefs.setString(_usersKey, usersJson);
+  }
+
+  static Future<void> addUser(User user) async {
+    if (_users == null) await _loadUsers();
+    if (_users == null) return;
+
+    print('=== KAYIT İŞLEMİ BAŞLADI ===');
+    print('Eklenecek kullanıcı bilgileri:');
+    print('- E-posta: ${user.email}');
+    print('- Şifre: ${user.password}');
+    print('- İsim: ${user.name}');
+    print('- Tip: ${user.userType.displayName}');
+    
+    _users!.add(user);
+    await _saveUsers();
+    
+    print('\nMevcut kullanıcı listesi:');
+    for (var u in _users!) {
+      print('* ${u.email} (${u.password})');
+    }
+    print('=== KAYIT İŞLEMİ TAMAMLANDI ===\n');
   }
 
   static User? findUserById(String id) {
+    if (_users == null) return null;
     try {
-      return _users.firstWhere((user) => user.id == id);
+      return _users!.firstWhere((user) => user.id == id);
     } catch (e) {
       return null;
     }
   }
 
   static User? findUserByEmail(String email) {
+    if (_users == null) return null;
+    print('\nKullanıcı arama: $email');
     try {
-      return _users.firstWhere((user) => user.email == email);
+      final user = _users!.firstWhere(
+        (user) => user.email.trim().toLowerCase() == email.trim().toLowerCase()
+      );
+      print('Kullanıcı bulundu: ${user.email}');
+      return user;
     } catch (e) {
+      print('Kullanıcı bulunamadı: $email');
       return null;
     }
   }
 
   static bool validateUser(String email, String password) {
-    return _users.any((user) => user.email == email && user.password == password);
+    if (_users == null) return false;
+    
+    print('\n=== GİRİŞ DOĞRULAMA BAŞLADI ===');
+    print('Girilen bilgiler:');
+    print('- E-posta: $email');
+    print('- Şifre: $password');
+    
+    print('\nKayıtlı kullanıcılar:');
+    for (var user in _users!) {
+      print('* ${user.email} (${user.password})');
+    }
+    
+    final user = findUserByEmail(email);
+    if (user != null) {
+      print('\nKullanıcı bulundu:');
+      print('- Kayıtlı e-posta: ${user.email}');
+      print('- Kayıtlı şifre: ${user.password}');
+      
+      final isValid = user.password == password;
+      print('\nŞifre kontrolü: ${isValid ? "BAŞARILI" : "BAŞARISIZ"}');
+      print('=== GİRİŞ DOĞRULAMA TAMAMLANDI ===\n');
+      return isValid;
+    }
+    
+    print('\nKullanıcı bulunamadı!');
+    print('=== GİRİŞ DOĞRULAMA TAMAMLANDI ===\n');
+    return false;
   }
 
-  static void updateUserProfile(String email, UserProfile profile) {
+  static Future<void> updateUserProfile(String email, UserProfile profile) async {
+    if (_users == null) return;
     final user = findUserByEmail(email);
     if (user != null) {
       user.profile = profile;
-      print('Profil güncellendi: ${user.email}'); // Debug için log
+      await _saveUsers();
+      print('Profil güncellendi: ${user.email}');
     } else {
-      print('Kullanıcı bulunamadı: $email'); // Debug için log
+      print('Kullanıcı bulunamadı: $email');
     }
   }
 
   static bool hasProfile(String email) {
+    if (_users == null) return false;
     final user = findUserByEmail(email);
     final hasProfile = user?.profile != null;
-    print('Profil kontrolü: $email - $hasProfile'); // Debug için log
+    print('Profil kontrolü: $email - $hasProfile');
     return hasProfile;
   }
 
-  // Favori ilan ekleme/çıkarma
   static void toggleFavorite(String email, String advertId) {
+    if (_users == null) return;
     final user = findUserByEmail(email);
     if (user?.profile != null) {
       final favorites = user!.profile!.favorites;
@@ -149,11 +321,12 @@ class UserRepository {
       } else {
         favorites.add(advertId);
       }
+      _saveUsers();
     }
   }
 
-  // Kullanıcının favori ilanlarını getirme
   static List<String> getUserFavorites(String email) {
+    if (_users == null) return [];
     final user = findUserByEmail(email);
     return user?.profile?.favorites ?? [];
   }

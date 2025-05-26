@@ -97,7 +97,12 @@ class _CreateAdvertPageState extends State<CreateAdvertPage> {
   void _submitForm() {
     if (_formKey.currentState!.validate()) {
       final user = UserRepository.findUserByEmail(widget.userEmail);
-      if (user == null) return;
+      if (user == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Kullanıcı bulunamadı!')),
+        );
+        return;
+      }
 
       final advert = Advertisement(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -118,8 +123,30 @@ class _CreateAdvertPageState extends State<CreateAdvertPage> {
         certificateUrl: _certificateFile?.path,
       );
 
-      AdvertRepository.addAdvert(advert);
-      Navigator.pop(context);
+      try {
+        AdvertRepository.addAdvert(advert);
+        // Debug çıktısı
+        AdvertRepository.debugPrintAllAdverts();
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('İlan başarıyla eklendi!')),
+        );
+
+        // Ana sayfaya dönüş
+        if (context.mounted) {
+          // Bottom navigation bar'ı 0 (ana sayfa) indexine ayarla
+          if (Navigator.canPop(context)) {
+            // HomePage widget'ına dön ve bottom navigation bar'ı ana sayfaya ayarla
+            Navigator.of(context).pop({'selectedIndex': 0});
+          }
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('İlan eklenirken hata oluştu: $e')),
+          );
+        }
+      }
     }
   }
 
