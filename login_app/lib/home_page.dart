@@ -7,6 +7,7 @@ import 'pages/create_advert_page.dart';
 import 'pages/messages_page.dart';
 import 'pages/create_profile_page.dart';
 import 'pages/advert_detail_page.dart';
+import 'pages/profile_page.dart';
 
 class HomePage extends StatefulWidget {
   final String userEmail;
@@ -280,86 +281,14 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
           ),
-
           // İlanlar Sayfası
-          SafeArea(
-            child: AdvertisementsPage(userEmail: widget.userEmail),
-          ),
-
+          AdvertisementsPage(userEmail: widget.userEmail),
+          // İlan Oluşturma Sayfası
+          CreateAdvertPage(userEmail: widget.userEmail),
+          // Mesajlar Sayfası
+          MessagesPage(userEmail: widget.userEmail),
           // Profil Sayfası
-          SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
-              child: Column(
-                children: [
-                  CircleAvatar(
-                    radius: 50,
-                    backgroundColor: Colors.grey[300],
-                    child: Text(
-                      currentUser?.name.substring(0, 1).toUpperCase() ?? 'U',
-                      style: const TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    currentUser?.name ?? 'Kullanıcı',
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    currentUser?.email ?? '',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  // Profil menüsü
-                  _buildProfileMenuItem(
-                    icon: Icons.person,
-                    title: 'Profili Düzenle',
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => CreateProfilePage(
-                            userEmail: widget.userEmail,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildProfileMenuItem(
-                    icon: Icons.favorite,
-                    title: 'Favorilerim',
-                    onTap: () {
-                      // Favoriler sayfasına git
-                    },
-                  ),
-                  _buildProfileMenuItem(
-                    icon: Icons.settings,
-                    title: 'Ayarlar',
-                    onTap: () {
-                      // Ayarlar sayfasına git
-                    },
-                  ),
-                  _buildProfileMenuItem(
-                    icon: Icons.exit_to_app,
-                    title: 'Çıkış Yap',
-                    onTap: () {
-                      Navigator.pushReplacementNamed(context, '/');
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
+          ProfilePage(userEmail: widget.userEmail),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -376,9 +305,19 @@ class _HomePageState extends State<HomePage> {
             label: 'Ana Sayfa',
           ),
           NavigationDestination(
-            icon: Icon(Icons.list_outlined),
-            selectedIcon: Icon(Icons.list),
+            icon: Icon(Icons.shopping_bag_outlined),
+            selectedIcon: Icon(Icons.shopping_bag),
             label: 'İlanlar',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.add_circle_outline),
+            selectedIcon: Icon(Icons.add_circle),
+            label: 'İlan Ekle',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.message_outlined),
+            selectedIcon: Icon(Icons.message),
+            label: 'Mesajlar',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline),
@@ -386,23 +325,6 @@ class _HomePageState extends State<HomePage> {
             label: 'Profil',
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => CreateAdvertPage(userEmail: widget.userEmail),
-            ),
-          ).then((_) {
-            setState(() {
-              // İlan eklenince listeyi yenile
-              _currentPage = 1;
-              _hasMoreData = true;
-            });
-          });
-        },
-        child: const Icon(Icons.add),
       ),
     );
   }

@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../models/advertisement.dart';
 import '../models/user_model.dart';
+import 'package:path_provider/path_provider.dart';
 
 class CreateAdvertPage extends StatefulWidget {
   final String userEmail;
@@ -63,6 +64,24 @@ class _CreateAdvertPageState extends State<CreateAdvertPage> {
     }
   }
 
+  Future<List<String>> _saveImages() async {
+    final List<String> imageUrls = [];
+    final appDir = await getApplicationDocumentsDirectory();
+    final imagesDir = Directory('${appDir.path}/images');
+    
+    if (!await imagesDir.exists()) {
+      await imagesDir.create(recursive: true);
+    }
+
+    for (var image in _selectedImages) {
+      final fileName = DateTime.now().millisecondsSinceEpoch.toString() + '_' + image.path.split('/').last;
+      final savedImage = await image.copy('${imagesDir.path}/$fileName');
+      imageUrls.add(savedImage.path);
+    }
+
+    return imageUrls;
+  }
+
   Future<void> _pickCertificate() async {
     final picker = ImagePicker();
     final image = await picker.pickImage(source: ImageSource.gallery);
@@ -94,7 +113,7 @@ class _CreateAdvertPageState extends State<CreateAdvertPage> {
     }
   }
 
-  void _submitForm() {
+  void _submitForm() async {
     if (_formKey.currentState!.validate()) {
       final user = UserRepository.findUserByEmail(widget.userEmail);
       if (user == null) {
@@ -104,54 +123,59 @@ class _CreateAdvertPageState extends State<CreateAdvertPage> {
         return;
       }
 
-      final advert = Advertisement(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        userId: user.id,
-        title: _titleController.text,
-        category: _selectedCategory,
-        price: double.parse(_priceController.text),
-        unit: _selectedUnit,
-        quantity: double.parse(_quantityController.text),
-        city: _selectedCity,
-        district: _selectedDistrict,
-        description: _descriptionController.text,
-        imageUrls: _selectedImages.isNotEmpty 
-          ? ['assets/images/${_selectedImages.first.path.split('/').last}']
-          : ['assets/images/placeholder.jpg'],
-        createdAt: DateTime.now(),
-        availableFrom: _availableFrom,
-        availableTo: _availableTo,
-        isOrganic: _isOrganic,
-        certificateUrl: _certificateFile?.path,
-        isActive: true,
+      // Yükleme göstergesi
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
       );
 
       try {
-        for (var image in _selectedImages) {
-          // TODO: Implement file copy to assets/images
-          // This requires a file handling service
-        }
+        // Görselleri kaydet
+        final imageUrls = await _saveImages();
+
+        final advert = Advertisement(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          userId: user.id,
+          title: _titleController.text,
+          category: _selectedCategory,
+          price: double.parse(_priceController.text),
+          unit: _selectedUnit,
+          quantity: double.parse(_quantityController.text),
+          city: _selectedCity,
+          district: _selectedDistrict,
+          description: _descriptionController.text,
+          imageUrls: imageUrls.isNotEmpty ? imageUrls : ['assets/images/placeholder.jpg'],
+          createdAt: DateTime.now(),
+          availableFrom: _availableFrom,
+          availableTo: _availableTo,
+          isOrganic: _isOrganic,
+          certificateUrl: _certificateFile?.path,
+          isActive: true,
+        );
         
         AdvertRepository.addAdvert(advert);
-        // Debug çıktısı
-        AdvertRepository.debugPrintAllAdverts();
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('İlan başarıyla eklendi!')),
-        );
-
-        // Ana sayfaya dönüş
         if (context.mounted) {
-          // Bottom navigation bar'ı 0 (ana sayfa) indexine ayarla
+          // Yükleme göstergesini kapat
+          Navigator.pop(context);
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('İlan başarıyla eklendi!')),
+          );
+
+          // Ana sayfaya dön
           if (Navigator.canPop(context)) {
-            // HomePage widget'ına dön ve bottom navigation bar'ı ana sayfaya ayarla
             Navigator.of(context).pop({'selectedIndex': 0});
           }
         }
       } catch (e) {
         if (context.mounted) {
+          // Yükleme göstergesini kapat
+          Navigator.pop(context);
+          
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('İlan eklenirken hata oluştu: $e')),
+            SnackBar(content: Text('Hata oluştu: $e')),
           );
         }
       }

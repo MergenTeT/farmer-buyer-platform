@@ -3,6 +3,7 @@ import '../models/advertisement.dart';
 import '../models/advert_filter.dart';
 import '../widgets/filter_bottom_sheet.dart';
 import 'advert_detail_page.dart';
+import 'dart:io';
 
 class AdvertisementsPage extends StatefulWidget {
   final String userEmail;
@@ -222,6 +223,32 @@ class AdvertCard extends StatelessWidget {
     required this.userEmail,
   });
 
+  Widget _buildImage(String imageUrl) {
+    if (imageUrl.startsWith('assets/')) {
+      return Image.asset(
+        imageUrl,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            color: Colors.grey[300],
+            child: const Icon(Icons.image_not_supported, size: 50),
+          );
+        },
+      );
+    } else {
+      return Image.file(
+        File(imageUrl),
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            color: Colors.grey[300],
+            child: const Icon(Icons.image_not_supported, size: 50),
+          );
+        },
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -244,16 +271,7 @@ class AdvertCard extends StatelessWidget {
             if (advertisement.imageUrls.isNotEmpty)
               AspectRatio(
                 aspectRatio: 16 / 9,
-                child: Image.asset(
-                  advertisement.imageUrls.first,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      color: Colors.grey[300],
-                      child: const Icon(Icons.image_not_supported, size: 50),
-                    );
-                  },
-                ),
+                child: _buildImage(advertisement.imageUrls.first),
               ),
             Padding(
               padding: const EdgeInsets.all(16),

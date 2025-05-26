@@ -66,6 +66,10 @@ class UserProfile {
   final String? profileImage; // Profil fotoğrafı
   final DateTime createdAt;
   final List<String> favorites; // Favori ilanlar
+  final double rating; // Değerlendirme puanı (5 üzerinden)
+  final int ratingCount; // Toplam değerlendirme sayısı
+  final int totalAdverts; // Toplam ilan sayısı
+  final bool isActive; // Aktiflik durumu
 
   UserProfile({
     required this.phoneNumber,
@@ -78,6 +82,10 @@ class UserProfile {
     this.profileImage,
     required this.createdAt,
     List<String>? favorites,
+    this.rating = 0.0,
+    this.ratingCount = 0,
+    this.totalAdverts = 0,
+    this.isActive = true,
   }) : favorites = favorites ?? [];
 
   // JSON dönüşümleri için
@@ -93,6 +101,10 @@ class UserProfile {
       'profileImage': profileImage,
       'createdAt': createdAt.toIso8601String(),
       'favorites': favorites,
+      'rating': rating,
+      'ratingCount': ratingCount,
+      'totalAdverts': totalAdverts,
+      'isActive': isActive,
     };
   }
 
@@ -108,6 +120,10 @@ class UserProfile {
       profileImage: json['profileImage'],
       createdAt: DateTime.parse(json['createdAt']),
       favorites: List<String>.from(json['favorites']),
+      rating: (json['rating'] ?? 0.0).toDouble(),
+      ratingCount: json['ratingCount'] ?? 0,
+      totalAdverts: json['totalAdverts'] ?? 0,
+      isActive: json['isActive'] ?? true,
     );
   }
 
@@ -115,6 +131,22 @@ class UserProfile {
   static bool isValidPhoneNumber(String phone) {
     final phoneRegex = RegExp(r'^\+90[0-9]{10}$');
     return phoneRegex.hasMatch(phone);
+  }
+
+  // Üyelik süresini hesapla
+  String getMembershipDuration() {
+    final now = DateTime.now();
+    final difference = now.difference(createdAt);
+    
+    if (difference.inDays < 30) {
+      return '${difference.inDays} gün';
+    } else if (difference.inDays < 365) {
+      final months = (difference.inDays / 30).floor();
+      return '$months ay';
+    } else {
+      final years = (difference.inDays / 365).floor();
+      return '$years yıl';
+    }
   }
 }
 
@@ -185,7 +217,11 @@ class UserRepository {
             city: 'Antalya',
             district: 'Kumluca',
             detailedAddress: 'Test Mahallesi',
-            createdAt: DateTime.now(),
+            createdAt: DateTime.now().subtract(const Duration(days: 730)), // 2 yıl önce
+            rating: 4.8,
+            ratingCount: 156,
+            totalAdverts: 124,
+            isActive: true,
           ),
         ),
         User(
@@ -199,7 +235,11 @@ class UserRepository {
             city: 'İstanbul',
             district: 'Kadıköy',
             detailedAddress: 'Test Sokak',
-            createdAt: DateTime.now(),
+            createdAt: DateTime.now().subtract(const Duration(days: 45)), // 45 gün önce
+            rating: 4.2,
+            ratingCount: 23,
+            totalAdverts: 5,
+            isActive: true,
           ),
         ),
       ];
@@ -239,9 +279,13 @@ class UserRepository {
 
   static User? findUserById(String id) {
     if (_users == null) return null;
+    print('\nKullanıcı ID ile arama: $id');
     try {
-      return _users!.firstWhere((user) => user.id == id);
+      final user = _users!.firstWhere((user) => user.id == id);
+      print('Kullanıcı bulundu: ${user.email}');
+      return user;
     } catch (e) {
+      print('Kullanıcı bulunamadı: $id');
       return null;
     }
   }
@@ -329,5 +373,15 @@ class UserRepository {
     if (_users == null) return [];
     final user = findUserByEmail(email);
     return user?.profile?.favorites ?? [];
+  }
+
+  // Kullanıcı güncelle
+  static Future<void> updateUser(User user) async {
+    await _loadUsers();
+    final index = _users?.indexWhere((u) => u.id == user.id) ?? -1;
+    if (index != -1 && _users != null) {
+      _users![index] = user;
+      await _saveUsers();
+    }
   }
 } 

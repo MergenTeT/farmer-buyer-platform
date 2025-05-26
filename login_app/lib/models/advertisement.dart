@@ -52,14 +52,16 @@ class Advertisement {
     required this.city,
     required this.district,
     required this.description,
-    required this.imageUrls,
+    List<String>? imageUrls,
     required this.createdAt,
     required this.availableFrom,
     required this.availableTo,
     this.isActive = true,
     this.isOrganic = false,
     this.certificateUrl,
-  });
+  }) : imageUrls = imageUrls?.isNotEmpty == true 
+          ? imageUrls! 
+          : [getDefaultImageForCategory(category)];
 
   // Toplam fiyat hesaplama
   double get totalPrice => price * quantity;
@@ -74,6 +76,25 @@ class Advertisement {
 
   // Lokasyon bilgisini birleştirme
   String get location => '$district, $city';
+
+  // Kategori bazlı varsayılan görsel
+  static String getDefaultImageForCategory(ProductCategory category) {
+    try {
+      switch (category) {
+        case ProductCategory.vegetable:
+          return 'assets/images/pepper.jpg';
+        case ProductCategory.legume:
+          return 'assets/images/chickpea.jpg';
+        case ProductCategory.grain:
+          return 'assets/images/rice.jpg';
+        default:
+          return 'assets/images/placeholder.jpg';
+      }
+    } catch (e) {
+      print('Error getting default image for category: $category');
+      return 'assets/images/placeholder.jpg';
+    }
+  }
 }
 
 // İlan deposu
@@ -570,5 +591,11 @@ class AdvertRepository {
     }
 
     return filteredList;
+  }
+
+  // İlan ID'lerine göre ilanları getir
+  static List<Advertisement> getAdvertsByIds(List<String> ids) {
+    return _adverts.where((ad) => ids.contains(ad.id)).toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
   }
 } 
