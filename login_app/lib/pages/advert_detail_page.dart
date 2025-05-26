@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:carousel_slider/carousel_slider.dart';
 import '../models/advertisement.dart';
 import '../models/user_model.dart';
 import '../models/message.dart';
@@ -19,7 +18,8 @@ class AdvertDetailPage extends StatefulWidget {
 }
 
 class _AdvertDetailPageState extends State<AdvertDetailPage> {
-  final _messageController = TextEditingController();
+  int _currentImageIndex = 0;
+  final PageController _pageController = PageController();
   bool _isFavorite = false;
   User? _advertOwner;
   User? _currentUser;
@@ -53,16 +53,13 @@ class _AdvertDetailPageState extends State<AdvertDetailPage> {
   }
 
   void _sendMessage() {
-    if (_messageController.text.isNotEmpty &&
-        _currentUser != null &&
-        _advertOwner != null) {
+    if (_currentUser != null && _advertOwner != null) {
       MessageRepository.sendMessage(
         senderId: _currentUser!.id,
         receiverId: _advertOwner!.id,
         advertId: widget.advertisement.id,
-        content: _messageController.text,
+        content: '${widget.advertisement.title} ilanınız hakkında bilgi almak istiyorum.',
       );
-      _messageController.clear();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Mesajınız gönderildi')),
       );
@@ -71,7 +68,7 @@ class _AdvertDetailPageState extends State<AdvertDetailPage> {
 
   @override
   void dispose() {
-    _messageController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -95,34 +92,67 @@ class _AdvertDetailPageState extends State<AdvertDetailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Fotoğraf galerisi
+            // Resim galerisi
             if (widget.advertisement.imageUrls.isNotEmpty)
-              CarouselSlider(
-                options: CarouselOptions(
-                  height: 300,
-                  viewportFraction: 1.0,
-                  enlargeCenterPage: false,
-                  enableInfiniteScroll: false,
-                ),
-                items: widget.advertisement.imageUrls.map((imageUrl) {
-                  return Builder(
-                    builder: (BuildContext context) {
-                      return Image.asset(
-                        imageUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            color: Colors.grey[300],
-                            child: const Icon(
-                              Icons.image_not_supported,
-                              size: 50,
+              Stack(
+                alignment: Alignment.bottomCenter,
+                children: [
+                  SizedBox(
+                    height: 300,
+                    child: PageView.builder(
+                      controller: _pageController,
+                      onPageChanged: (index) {
+                        setState(() {
+                          _currentImageIndex = index;
+                        });
+                      },
+                      itemCount: widget.advertisement.imageUrls.length,
+                      itemBuilder: (context, index) {
+                        return Image.asset(
+                          widget.advertisement.imageUrls[index],
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: Colors.grey[300],
+                              child: const Icon(
+                                Icons.image_not_supported,
+                                size: 50,
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                  // Sayfa indikatörü
+                  if (widget.advertisement.imageUrls.length > 1)
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(
+                          widget.advertisement.imageUrls.length,
+                          (index) => Container(
+                            width: 8,
+                            height: 8,
+                            margin: const EdgeInsets.symmetric(horizontal: 4),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _currentImageIndex == index
+                                  ? Theme.of(context).primaryColor
+                                  : Colors.grey.withOpacity(0.5),
                             ),
-                          );
-                        },
-                      );
-                    },
-                  );
-                }).toList(),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              )
+            else
+              Container(
+                height: 300,
+                color: Colors.grey[300],
+                child: const Icon(Icons.image_not_supported, size: 50),
               ),
 
             Padding(
@@ -135,12 +165,25 @@ class _AdvertDetailPageState extends State<AdvertDetailPage> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Expanded(
-                        child: Text(
-                          widget.advertisement.title,
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.advertisement.title,
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              widget.advertisement.category.displayName,
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Theme.of(context).primaryColor,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       Column(
@@ -157,7 +200,7 @@ class _AdvertDetailPageState extends State<AdvertDetailPage> {
                           Text(
                             'Toplam: ${widget.advertisement.totalPrice.toStringAsFixed(2)} ₺',
                             style: const TextStyle(
-                              fontSize: 14,
+                              fontSize: 16,
                               color: Colors.grey,
                             ),
                           ),
@@ -165,52 +208,64 @@ class _AdvertDetailPageState extends State<AdvertDetailPage> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 16),
 
-                  // Kategori ve miktar
+                  // Miktar ve organik bilgisi
                   Row(
                     children: [
-                      Chip(
-                        label: Text(widget.advertisement.category.displayName),
-                        backgroundColor:
-                            Theme.of(context).primaryColor.withOpacity(0.1),
+                      Text(
+                        'Miktar: ${widget.advertisement.quantity} ${widget.advertisement.unit.displayName}',
+                        style: const TextStyle(fontSize: 16),
                       ),
-                      const SizedBox(width: 8),
-                      Chip(
-                        label: Text(
-                            '${widget.advertisement.quantity} ${widget.advertisement.unit.displayName}'),
-                        backgroundColor: Colors.grey[200],
-                      ),
-                      if (widget.advertisement.isOrganic) ...[
-                        const SizedBox(width: 8),
-                        const Chip(
-                          label: Text('Organik'),
-                          backgroundColor: Colors.green,
-                          labelStyle: TextStyle(color: Colors.white),
+                      const Spacer(),
+                      if (widget.advertisement.isOrganic)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.eco,
+                                size: 16,
+                                color: Colors.green[700],
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Organik Ürün',
+                                style: TextStyle(
+                                  color: Colors.green[700],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ],
                     ],
                   ),
                   const SizedBox(height: 16),
 
-                  // Lokasyon
-                  ListTile(
-                    leading: const Icon(Icons.location_on),
-                    title: Text(widget.advertisement.location),
-                    contentPadding: EdgeInsets.zero,
+                  // Konum
+                  Row(
+                    children: [
+                      const Icon(Icons.location_on, color: Colors.grey),
+                      const SizedBox(width: 8),
+                      Text(
+                        widget.advertisement.location,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
                   ),
-
-                  // Satış tarihi
-                  ListTile(
-                    leading: const Icon(Icons.calendar_today),
-                    title: Text(
-                      'Satış Tarihi: ${widget.advertisement.availableFrom.day}/${widget.advertisement.availableFrom.month}/${widget.advertisement.availableFrom.year} - '
-                      '${widget.advertisement.availableTo.day}/${widget.advertisement.availableTo.month}/${widget.advertisement.availableTo.year}',
-                    ),
-                    contentPadding: EdgeInsets.zero,
-                  ),
-
-                  const Divider(),
+                  const SizedBox(height: 24),
 
                   // Açıklama
                   const Text(
@@ -221,23 +276,11 @@ class _AdvertDetailPageState extends State<AdvertDetailPage> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Text(widget.advertisement.description),
-                  const SizedBox(height: 16),
-
-                  if (widget.advertisement.isOrganic &&
-                      widget.advertisement.certificateUrl != null) ...[
-                    const Divider(),
-                    ListTile(
-                      leading: const Icon(Icons.verified),
-                      title: const Text('Organik Sertifika'),
-                      trailing: const Icon(Icons.download),
-                      onTap: () {
-                        // TODO: Sertifika indirme/görüntüleme
-                      },
-                    ),
-                  ],
-
-                  const Divider(),
+                  Text(
+                    widget.advertisement.description,
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                  const SizedBox(height: 24),
 
                   // Satıcı bilgileri
                   if (_advertOwner != null) ...[
@@ -250,46 +293,19 @@ class _AdvertDetailPageState extends State<AdvertDetailPage> {
                     ),
                     const SizedBox(height: 8),
                     ListTile(
+                      contentPadding: EdgeInsets.zero,
                       leading: CircleAvatar(
-                        child: Text(_advertOwner!.name[0].toUpperCase()),
+                        backgroundColor: Theme.of(context).primaryColor,
+                        child: Text(
+                          _advertOwner!.name.substring(0, 1).toUpperCase(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                       title: Text(_advertOwner!.name),
                       subtitle: Text(_advertOwner!.profile?.phoneNumber ?? ''),
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                  ],
-
-                  const SizedBox(height: 16),
-
-                  // Mesaj gönderme
-                  if (_currentUser?.id != widget.advertisement.userId) ...[
-                    const Text(
-                      'Satıcıya Mesaj Gönder',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _messageController,
-                            decoration: const InputDecoration(
-                              hintText: 'Mesajınızı yazın...',
-                              border: OutlineInputBorder(),
-                            ),
-                            maxLines: 3,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          onPressed: _sendMessage,
-                          icon: const Icon(Icons.send),
-                          color: Theme.of(context).primaryColor,
-                        ),
-                      ],
                     ),
                   ],
                 ],
@@ -298,6 +314,25 @@ class _AdvertDetailPageState extends State<AdvertDetailPage> {
           ],
         ),
       ),
+      bottomNavigationBar: _advertOwner?.id != _currentUser?.id
+          ? SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: ElevatedButton(
+                  onPressed: _sendMessage,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    backgroundColor: Theme.of(context).primaryColor,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text(
+                    'Satıcıya Mesaj Gönder',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                ),
+              ),
+            )
+          : null,
     );
   }
 } 

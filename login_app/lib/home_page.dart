@@ -21,16 +21,70 @@ class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
   final _searchController = TextEditingController();
   String _searchQuery = '';
+  final _scrollController = ScrollController();
+  
+  // Sayfalama için değişkenler
+  int _currentPage = 1;
+  static const int _pageSize = 5;
+  bool _isLoading = false;
+  bool _hasMoreData = true;
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  // Scroll listener
+  void _onScroll() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent * 0.8 &&
+        !_isLoading &&
+        _hasMoreData) {
+      _loadMoreData();
+    }
+  }
+
+  // Veri yükleme fonksiyonu
+  Future<void> _loadMoreData() async {
+    if (_isLoading) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    // Simüle edilmiş ağ gecikmesi
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    final newAdverts = AdvertRepository.getAdvertsByPage(_currentPage + 1, _pageSize);
+    
+    if (newAdverts.isEmpty) {
+      setState(() {
+        _hasMoreData = false;
+        _isLoading = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _currentPage++;
+      _isLoading = false;
+    });
+  }
+
+  // Yenileme fonksiyonu
+  Future<void> _refresh() async {
+    setState(() {
+      _currentPage = 1;
+      _hasMoreData = true;
+    });
+    await _loadMoreData();
   }
 
   @override
@@ -38,305 +92,423 @@ class _HomePageState extends State<HomePage> {
     final User? currentUser = UserRepository.findUserByEmail(widget.userEmail);
     final List<Widget> _pages = [
       // Ana Sayfa
-      ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Arama kutusu
-          TextField(
-            controller: _searchController,
-            decoration: InputDecoration(
-              hintText: 'İlan ara...',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: _searchQuery.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.clear),
-                      onPressed: () {
-                        setState(() {
-                          _searchController.clear();
-                          _searchQuery = '';
-                        });
-                      },
-                    )
-                  : null,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            onChanged: (value) {
-              setState(() {
-                _searchQuery = value;
-              });
-            },
-          ),
-          const SizedBox(height: 24),
-
-          // Kategoriler
-          const Text(
-            'Kategoriler',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
+      SafeArea(
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.green.shade50,
+                Colors.white,
+              ],
+              stops: const [0.0, 0.3],
             ),
           ),
-          const SizedBox(height: 16),
-          GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
-            mainAxisSpacing: 16,
-            crossAxisSpacing: 16,
-            children: ProductCategory.values.map((category) {
-              return CategoryCard(
-                category: category,
-                onTap: () {
-                  setState(() {
-                    _selectedIndex = 1; // İlanlar sekmesine geç
-                  });
-                },
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 24),
-
-          // Son ilanlar
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Son İlanlar',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+          child: RefreshIndicator(
+            onRefresh: _refresh,
+            child: ListView(
+              controller: _scrollController,
+              padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+              children: [
+                // Hoş geldin mesajı
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Merhaba, ${currentUser?.name ?? 'Kullanıcı'}',
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Bugün ne almak/satmak istersiniz?',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              TextButton(
-                onPressed: () {
-                  setState(() {
-                    _selectedIndex = 1; // İlanlar sekmesine geç
-                  });
-                },
-                child: const Text('Tümünü Gör'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
+                const SizedBox(height: 16),
 
-          // İlan listesi
-          if (_searchQuery.isEmpty)
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: AdvertRepository.getAllAdverts().length,
-              itemBuilder: (context, index) {
-                final adverts = AdvertRepository.getAllAdverts();
-                if (adverts.isEmpty) {
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(16.0),
-                      child: Text(
-                        'Henüz ilan bulunmuyor.',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey,
-                        ),
+                // Arama kutusu
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'İlan ara...',
+                      hintStyle: TextStyle(
+                        color: Colors.grey.shade400,
+                        fontSize: 16,
+                      ),
+                      prefixIcon: Icon(
+                        Icons.search,
+                        color: Colors.green.shade400,
+                      ),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              color: Colors.grey.shade400,
+                              onPressed: () {
+                                setState(() {
+                                  _searchController.clear();
+                                  _searchQuery = '';
+                                });
+                              },
+                            )
+                          : null,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
+                      filled: true,
+                      fillColor: Colors.white,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 16,
                       ),
                     ),
-                  );
-                }
-                return AdvertCard(
-                  advertisement: adverts[index],
-                  currentUserEmail: widget.userEmail,
-                );
-              },
-            )
-          else
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemBuilder: (context, index) {
-                final searchResults = AdvertRepository.searchAdverts(_searchQuery);
-                if (searchResults.isEmpty) {
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(16.0),
-                      child: Text(
-                        'Aramanızla eşleşen ilan bulunamadı.',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey,
+                    onChanged: (value) {
+                      setState(() {
+                        _searchQuery = value;
+                      });
+                    },
+                  ),
+                ),
+                const SizedBox(height: 32),
+
+                // Kategoriler
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Kategoriler',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
+                        TextButton(
+                          onPressed: () {
+                            setState(() {
+                              _selectedIndex = 1; // İlanlar sekmesine geç
+                            });
+                          },
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.green,
+                          ),
+                          child: const Row(
+                            children: [
+                              Text('Tümü'),
+                              Icon(Icons.chevron_right),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      height: 120,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: ProductCategory.values.length,
+                        itemBuilder: (context, index) {
+                          final category = ProductCategory.values[index];
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 16),
+                            child: CategoryCard(
+                              category: category,
+                              onTap: () {
+                                setState(() {
+                                  _selectedIndex = 1; // İlanlar sekmesine geç
+                                });
+                              },
+                            ),
+                          );
+                        },
                       ),
                     ),
-                  );
-                }
-                return AdvertCard(
-                  advertisement: searchResults[index],
-                  currentUserEmail: widget.userEmail,
-                );
-              },
-              itemCount: AdvertRepository.searchAdverts(_searchQuery).length,
+                  ],
+                ),
+                const SizedBox(height: 32),
+
+                // Son ilanlar
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Son İlanlar',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            setState(() {
+                              _selectedIndex = 1;
+                            });
+                          },
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.green,
+                          ),
+                          child: const Row(
+                            children: [
+                              Text('Tümünü Gör'),
+                              Icon(Icons.chevron_right),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // İlan listesi
+                    if (_searchQuery.isEmpty)
+                      ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: AdvertRepository.getAdvertsByPage(_currentPage, _pageSize).length + (_isLoading ? 1 : 0),
+                        itemBuilder: (context, index) {
+                          final adverts = AdvertRepository.getAdvertsByPage(_currentPage, _pageSize);
+                          
+                          if (index == adverts.length) {
+                            return Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: CircularProgressIndicator(
+                                  color: Theme.of(context).primaryColor,
+                                ),
+                              ),
+                            );
+                          }
+
+                          if (adverts.isEmpty) {
+                            return Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(32.0),
+                                child: Column(
+                                  children: [
+                                    Icon(
+                                      Icons.search_off,
+                                      size: 64,
+                                      color: Colors.grey.shade400,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'Henüz ilan bulunmuyor.',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        color: Colors.grey.shade600,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }
+
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: AdvertCard(
+                              advertisement: adverts[index],
+                              currentUserEmail: widget.userEmail,
+                            ),
+                          );
+                        },
+                      )
+                    else
+                      ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemBuilder: (context, index) {
+                          final searchResults = AdvertRepository.searchAdverts(_searchQuery);
+                          if (searchResults.isEmpty) {
+                            return Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(32.0),
+                                child: Column(
+                                  children: [
+                                    Icon(
+                                      Icons.search_off,
+                                      size: 64,
+                                      color: Colors.grey.shade400,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'Aramanızla eşleşen ilan bulunamadı.',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        color: Colors.grey.shade600,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: AdvertCard(
+                              advertisement: searchResults[index],
+                              currentUserEmail: widget.userEmail,
+                            ),
+                          );
+                        },
+                        itemCount: AdvertRepository.searchAdverts(_searchQuery).length,
+                      ),
+
+                    // Daha fazla veri yüklenirken gösterilecek indicator
+                    if (_isLoading && _searchQuery.isEmpty)
+                      Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: CircularProgressIndicator(
+                            color: Theme.of(context).primaryColor,
+                          ),
+                        ),
+                      ),
+
+                    // Tüm veriler yüklendiğinde gösterilecek mesaj
+                    if (!_hasMoreData && _searchQuery.isEmpty && AdvertRepository.getAllAdverts().isNotEmpty)
+                      Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Text(
+                            'Tüm ilanlar yüklendi',
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
             ),
-        ],
+          ),
+        ),
       ),
       
       // İlanlar Sayfası
-      AdvertisementsPage(userEmail: widget.userEmail),
+      SafeArea(
+        child: AdvertisementsPage(userEmail: widget.userEmail),
+      ),
 
       // İlan Ekle Sayfası
-      CreateAdvertPage(userEmail: widget.userEmail),
+      SafeArea(
+        child: CreateAdvertPage(userEmail: widget.userEmail),
+      ),
 
       // Mesajlar Sayfası
-      MessagesPage(userEmail: widget.userEmail),
+      SafeArea(
+        child: MessagesPage(userEmail: widget.userEmail),
+      ),
 
       // Profil Sayfası
-      SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            CircleAvatar(
-              radius: 50,
-              backgroundColor: Colors.grey[300],
-              child: Text(
-                currentUser?.name.substring(0, 1).toUpperCase() ?? 'U',
-                style: const TextStyle(fontSize: 40),
+      SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+          child: Column(
+            children: [
+              CircleAvatar(
+                radius: 50,
+                backgroundColor: Colors.grey[300],
+                child: Text(
+                  currentUser?.name.substring(0, 1).toUpperCase() ?? 'U',
+                  style: const TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              currentUser?.name ?? 'Kullanıcı',
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
+              const SizedBox(height: 16),
+              Text(
+                currentUser?.name ?? 'Kullanıcı',
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              currentUser?.email ?? '',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
+              Text(
+                currentUser?.email ?? '',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey[600],
+                ),
               ),
-            ),
-            const SizedBox(height: 24),
-            ProfileInfoCard(
-              icon: Icons.phone,
-              title: 'Telefon',
-              value: currentUser?.profile?.phoneNumber ?? 'Belirtilmedi',
-            ),
-            const SizedBox(height: 8),
-            ProfileInfoCard(
-              icon: Icons.location_on,
-              title: 'Adres',
-              value: currentUser?.profile?.city ?? 'Belirtilmedi',
-            ),
-            const SizedBox(height: 8),
-            ProfileInfoCard(
-              icon: Icons.business,
-              title: 'Şirket',
-              value: currentUser?.profile?.companyName ?? 'Belirtilmedi',
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.pushNamed(
-                  context,
-                  '/profile',
-                  arguments: widget.userEmail,
-                );
-              },
-              icon: const Icon(Icons.edit),
-              label: const Text('Profili Düzenle'),
-            ),
-            const SizedBox(height: 32),
-            const Divider(),
-            const SizedBox(height: 16),
-            ListTile(
-              leading: const Icon(Icons.favorite),
-              title: const Text('Favori İlanlarım'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () {
-                // TODO: Favori ilanlar sayfası
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.list_alt),
-              title: const Text('İlanlarım'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () {
-                // TODO: Kullanıcının ilanları sayfası
-              },
-            ),
-            const Divider(),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.pushReplacementNamed(context, '/');
-              },
-              icon: const Icon(Icons.exit_to_app),
-              label: const Text('Çıkış Yap'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
+              const SizedBox(height: 32),
+              // Profil menüsü
+              _buildProfileMenuItem(
+                icon: Icons.person,
+                title: 'Profili Düzenle',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => CreateProfilePage(
+                        userEmail: widget.userEmail,
+                      ),
+                    ),
+                  );
+                },
               ),
-            ),
-          ],
+              _buildProfileMenuItem(
+                icon: Icons.favorite,
+                title: 'Favorilerim',
+                onTap: () {
+                  // Favoriler sayfasına git
+                },
+              ),
+              _buildProfileMenuItem(
+                icon: Icons.settings,
+                title: 'Ayarlar',
+                onTap: () {
+                  // Ayarlar sayfasına git
+                },
+              ),
+              _buildProfileMenuItem(
+                icon: Icons.exit_to_app,
+                title: 'Çıkış Yap',
+                onTap: () {
+                  Navigator.pushReplacementNamed(context, '/');
+                },
+              ),
+            ],
+          ),
         ),
       ),
     ];
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_selectedIndex == 0 
-          ? 'Ana Sayfa' 
-          : _selectedIndex == 1 
-            ? 'İlanlar'
-            : _selectedIndex == 2
-              ? 'İlan Ekle'
-              : _selectedIndex == 3
-                ? 'Mesajlar'
-                : 'Profil'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        actions: [
-          if (_selectedIndex == 3)
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.notifications),
-                  onPressed: () {
-                    // TODO: Bildirimler sayfası
-                  },
-                ),
-                if (currentUser != null &&
-                    MessageRepository.getUnreadMessageCount(currentUser.id) > 0)
-                  Positioned(
-                    right: 8,
-                    top: 8,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      constraints: const BoxConstraints(
-                        minWidth: 16,
-                        minHeight: 16,
-                      ),
-                      child: Text(
-                        MessageRepository.getUnreadMessageCount(currentUser.id)
-                            .toString(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-        ],
-      ),
       body: _pages[_selectedIndex],
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
@@ -347,27 +519,45 @@ class _HomePageState extends State<HomePage> {
         },
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.home),
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
             label: 'Ana Sayfa',
           ),
           NavigationDestination(
-            icon: Icon(Icons.list_alt),
+            icon: Icon(Icons.list_outlined),
+            selectedIcon: Icon(Icons.list),
             label: 'İlanlar',
           ),
           NavigationDestination(
             icon: Icon(Icons.add_circle_outline),
+            selectedIcon: Icon(Icons.add_circle),
             label: 'İlan Ekle',
           ),
           NavigationDestination(
-            icon: Icon(Icons.message),
+            icon: Icon(Icons.message_outlined),
+            selectedIcon: Icon(Icons.message),
             label: 'Mesajlar',
           ),
           NavigationDestination(
-            icon: Icon(Icons.person),
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
             label: 'Profil',
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildProfileMenuItem({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      leading: Icon(icon, color: Colors.green),
+      title: Text(title),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: onTap,
     );
   }
 }
@@ -566,46 +756,6 @@ class AdvertCard extends StatelessWidget {
                   ),
                 ],
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class ProfileInfoCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String value;
-
-  const ProfileInfoCard({
-    super.key,
-    required this.icon,
-    required this.title,
-    required this.value,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Icon(icon, color: Theme.of(context).primaryColor),
-            const SizedBox(width: 16),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(value),
-              ],
             ),
           ],
         ),
