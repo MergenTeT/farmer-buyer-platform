@@ -115,15 +115,23 @@ class _CreateAdvertPageState extends State<CreateAdvertPage> {
         city: _selectedCity,
         district: _selectedDistrict,
         description: _descriptionController.text,
-        imageUrls: _selectedImages.map((file) => file.path).toList(),
+        imageUrls: _selectedImages.isNotEmpty 
+          ? ['assets/images/${_selectedImages.first.path.split('/').last}']
+          : ['assets/images/placeholder.jpg'],
         createdAt: DateTime.now(),
         availableFrom: _availableFrom,
         availableTo: _availableTo,
         isOrganic: _isOrganic,
         certificateUrl: _certificateFile?.path,
+        isActive: true,
       );
 
       try {
+        for (var image in _selectedImages) {
+          // TODO: Implement file copy to assets/images
+          // This requires a file handling service
+        }
+        
         AdvertRepository.addAdvert(advert);
         // Debug çıktısı
         AdvertRepository.debugPrintAllAdverts();

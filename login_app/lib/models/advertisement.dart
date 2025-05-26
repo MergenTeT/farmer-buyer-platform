@@ -1,3 +1,6 @@
+import 'package:flutter/material.dart';
+import 'advert_filter.dart';
+
 enum ProductCategory {
   fruit('Meyve'),
   vegetable('Sebze'),
@@ -358,16 +361,20 @@ class AdvertRepository {
 
   // Tüm aktif ilanları getir
   static List<Advertisement> getAllAdverts() {
-    return _adverts.where((ad) => ad.isActive && ad.isAvailable).toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return _adverts
+      .where((ad) => ad.isActive)  // Sadece aktif olma durumunu kontrol et
+      .toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));  // En yeni ilanlar önce
   }
 
   // Kategoriye göre ilanları getir
   static List<Advertisement> getAdvertsByCategory(ProductCategory category) {
     return _adverts
-        .where((ad) => ad.isActive && ad.isAvailable && ad.category == category)
-        .toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      .where((ad) => 
+        ad.isActive &&  // Sadece aktif olma durumunu kontrol et
+        ad.category == category)
+      .toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));  // En yeni ilanlar önce
   }
 
   // Kullanıcının ilanlarını getir
@@ -444,20 +451,124 @@ class AdvertRepository {
   }
 
   static List<Advertisement> getAdvertsByPage(int page, int pageSize) {
+    // Önce aktif ilanları filtrele ve sırala
+    final activeAdverts = _adverts
+      .where((ad) => ad.isActive)
+      .toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    
     final startIndex = (page - 1) * pageSize;
     final endIndex = startIndex + pageSize;
     
-    if (startIndex >= _adverts.length) {
+    if (startIndex >= activeAdverts.length) {
       return [];
     }
     
-    return _adverts.sublist(
+    return activeAdverts.sublist(
       startIndex,
-      endIndex > _adverts.length ? _adverts.length : endIndex,
+      endIndex > activeAdverts.length ? activeAdverts.length : endIndex,
     );
   }
 
   static int getTotalPages(int pageSize) {
-    return (_adverts.length / pageSize).ceil();
+    // Sadece aktif ilanları say
+    final activeAdvertCount = _adverts.where((ad) => ad.isActive).length;
+    return (activeAdvertCount / pageSize).ceil();
+  }
+
+  // Filtreye göre ilanları getir
+  static List<Advertisement> getFilteredAdverts(AdvertFilter filter) {
+    var filteredList = _adverts.where((ad) {
+      if (!ad.isActive) return false;
+
+      // Arama sorgusu kontrolü
+      if (filter.searchQuery != null && filter.searchQuery!.isNotEmpty) {
+        final query = filter.searchQuery!.toLowerCase();
+        if (!ad.title.toLowerCase().contains(query) &&
+            !ad.description.toLowerCase().contains(query) &&
+            !ad.city.toLowerCase().contains(query) &&
+            !ad.district.toLowerCase().contains(query)) {
+          return false;
+        }
+      }
+
+      // Fiyat aralığı kontrolü
+      if (filter.priceRange != null) {
+        if (ad.price < filter.priceRange!.start || ad.price > filter.priceRange!.end) {
+          return false;
+        }
+      }
+
+      // Miktar aralığı kontrolü
+      if (filter.quantityRange != null) {
+        if (ad.quantity < filter.quantityRange!.start || 
+            ad.quantity > filter.quantityRange!.end) {
+          return false;
+        }
+      }
+
+      // Kategori kontrolü
+      if (filter.categories != null && filter.categories!.isNotEmpty) {
+        if (!filter.categories!.contains(ad.category)) {
+          return false;
+        }
+      }
+
+      // Şehir kontrolü
+      if (filter.cities != null && filter.cities!.isNotEmpty) {
+        if (!filter.cities!.contains(ad.city)) {
+          return false;
+        }
+      }
+
+      // İlçe kontrolü
+      if (filter.district != null && filter.district!.isNotEmpty) {
+        if (ad.district != filter.district) {
+          return false;
+        }
+      }
+
+      // Organik ürün kontrolü
+      if (filter.isOrganic != null) {
+        if (ad.isOrganic != filter.isOrganic) {
+          return false;
+        }
+      }
+
+      // Birim tipi kontrolü
+      if (filter.units != null && filter.units!.isNotEmpty) {
+        if (!filter.units!.contains(ad.unit)) {
+          return false;
+        }
+      }
+
+      // Tarih aralığı kontrolü
+      if (filter.availabilityRange != null) {
+        if (ad.availableFrom.isAfter(filter.availabilityRange!.end) ||
+            ad.availableTo.isBefore(filter.availabilityRange!.start)) {
+          return false;
+        }
+      }
+
+      return true;
+    }).toList();
+
+    // Sıralama
+    switch (filter.sortOption) {
+      case SortOption.newest:
+        filteredList.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      case SortOption.oldest:
+        filteredList.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      case SortOption.priceHighToLow:
+        filteredList.sort((a, b) => b.price.compareTo(a.price));
+      case SortOption.priceLowToHigh:
+        filteredList.sort((a, b) => a.price.compareTo(b.price));
+      case SortOption.quantityHighToLow:
+        filteredList.sort((a, b) => b.quantity.compareTo(a.quantity));
+      case SortOption.quantityLowToHigh:
+        filteredList.sort((a, b) => a.quantity.compareTo(b.quantity));
+    }
+
+    return filteredList;
   }
 } 
