@@ -2,14 +2,17 @@ import 'package:flutter/material.dart';
 import 'advert_filter.dart';
 
 enum ProductCategory {
-  fruit('Meyve'),
-  vegetable('Sebze'),
-  grain('Tahıl'),
-  legume('Bakliyat'),
-  other('Diğer');
+  fruit('Meyve', Color(0xFFE57373), Icons.apple), // Kırmızımsı
+  vegetable('Sebze', Color(0xFF81C784), Icons.eco), // Yeşil
+  grain('Tahıl', Color(0xFFFFB74D), Icons.grass), // Turuncu
+  legume('Bakliyat', Color(0xFF9575CD), Icons.grain), // Mor
+  other('Diğer', Color(0xFF90A4AE), Icons.category); // Gri
 
   final String displayName;
-  const ProductCategory(this.displayName);
+  final Color color;
+  final IconData icon;
+  
+  const ProductCategory(this.displayName, this.color, this.icon);
 }
 
 enum UnitType {

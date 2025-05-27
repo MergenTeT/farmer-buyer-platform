@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 import 'models/user_model.dart';
 import 'models/advertisement.dart';
 import 'models/message.dart';
+import 'models/agriculture_news.dart';
+import 'models/price_data.dart';
 import 'pages/advertisements_page.dart';
 import 'pages/create_advert_page.dart';
 import 'pages/messages_page.dart';
 import 'pages/create_profile_page.dart';
 import 'pages/advert_detail_page.dart';
 import 'pages/profile_page.dart';
+import 'pages/news_detail_page.dart';
+import 'dart:async';
 
 class HomePage extends StatefulWidget {
   final String userEmail;
@@ -21,6 +25,9 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
   final _scrollController = ScrollController();
+  int _currentNewsIndex = 0;
+  final _newsPageController = PageController();
+  Timer? _newsTimer;
   
   // Sayfalama için değişkenler
   int _currentPage = 1;
@@ -32,12 +39,34 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    // Otomatik haber kaydırma için timer başlat
+    _startNewsTimer();
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
+    _newsPageController.dispose();
+    _newsTimer?.cancel();
     super.dispose();
+  }
+
+  void _startNewsTimer() {
+    _newsTimer?.cancel();
+    _newsTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      if (_currentNewsIndex < agricultureNews.length - 1) {
+        _newsPageController.nextPage(
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeInOut,
+        );
+      } else {
+        _newsPageController.animateToPage(
+          0,
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeInOut,
+        );
+      }
+    });
   }
 
   // Scroll listener
@@ -57,7 +86,6 @@ class _HomePageState extends State<HomePage> {
       _isLoading = true;
     });
 
-    // Simüle edilmiş ağ gecikmesi
     await Future.delayed(const Duration(milliseconds: 500));
 
     final newAdverts = AdvertRepository.getAdvertsByPage(_currentPage + 1, _pageSize);
@@ -74,6 +102,187 @@ class _HomePageState extends State<HomePage> {
       _currentPage++;
       _isLoading = false;
     });
+  }
+
+  // Haber kartı widget'ı
+  Widget _buildNewsCard(AgricultureNews news) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.2),
+            spreadRadius: 2,
+            blurRadius: 5,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => NewsDetailPage(news: news),
+            ),
+          );
+        },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              child: Image.asset(
+                news.imageUrl,
+                height: 120,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    height: 120,
+                    color: Colors.grey[200],
+                    child: const Icon(Icons.image_not_supported),
+                  );
+                },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    news.title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    news.date,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    news.summary,
+                    style: const TextStyle(fontSize: 14),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Fiyat kartı widget'ı
+  Widget _buildPriceSection(String title, List<PriceData> prices) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              'Son Güncelleme: ${prices.first.lastUpdate}',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: prices.length,
+          itemBuilder: (context, index) {
+            final price = prices[index];
+            return Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            price.name,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${price.price} ${price.unit}',
+                            style: const TextStyle(
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: price.change >= 0
+                            ? Colors.green.withOpacity(0.1)
+                            : Colors.red.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            price.change >= 0
+                                ? Icons.arrow_upward
+                                : Icons.arrow_downward,
+                            size: 16,
+                            color: price.change >= 0 ? Colors.green : Colors.red,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${price.change.abs()}%',
+                            style: TextStyle(
+                              color: price.change >= 0 ? Colors.green : Colors.red,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    );
   }
 
   @override
@@ -105,6 +314,18 @@ class _HomePageState extends State<HomePage> {
                   // Hoş geldin mesajı
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      color: Colors.white,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.green.withOpacity(0.1),
+                          spreadRadius: 1,
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -118,7 +339,7 @@ class _HomePageState extends State<HomePage> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Bugün ne almak/satmak istersiniz?',
+                          'Bugün tarım dünyasında neler oluyor?',
                           style: TextStyle(
                             fontSize: 16,
                             color: Colors.grey.shade600,
@@ -127,67 +348,94 @@ class _HomePageState extends State<HomePage> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 24),
 
-                  // Kategoriler
+                  // Tarım Haberleri
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'Kategoriler',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
+                      const Padding(
+                        padding: EdgeInsets.only(left: 8, bottom: 16),
+                        child: Text(
+                          'Tarım Haberleri',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
                           ),
-                          TextButton(
-                            onPressed: () {
-                              setState(() {
-                                _selectedIndex = 1; // İlanlar sekmesine geç
-                              });
-                            },
-                            style: TextButton.styleFrom(
-                              foregroundColor: Colors.green,
-                            ),
-                            child: const Row(
-                              children: [
-                                Text('Tümü'),
-                                Icon(Icons.chevron_right),
-                              ],
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
-                      const SizedBox(height: 16),
                       SizedBox(
-                        height: 120,
-                        child: ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: ProductCategory.values.length,
+                        height: 280,
+                        child: PageView.builder(
+                          controller: _newsPageController,
+                          itemCount: agricultureNews.length,
+                          onPageChanged: (index) {
+                            setState(() {
+                              _currentNewsIndex = index;
+                            });
+                          },
                           itemBuilder: (context, index) {
-                            final category = ProductCategory.values[index];
                             return Padding(
-                              padding: const EdgeInsets.only(right: 16),
-                              child: CategoryCard(
-                                category: category,
-                                onTap: () {
-                                  setState(() {
-                                    _selectedIndex = 1; // İlanlar sekmesine geç
-                                  });
-                                },
-                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              child: _buildNewsCard(agricultureNews[index]),
                             );
                           },
                         ),
+                      ),
+                      const SizedBox(height: 16),
+                      // Haber indikatörleri
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: agricultureNews.asMap().entries.map((entry) {
+                          return GestureDetector(
+                            onTap: () {
+                              _newsPageController.animateToPage(
+                                entry.key,
+                                duration: const Duration(milliseconds: 500),
+                                curve: Curves.easeInOut,
+                              );
+                            },
+                            child: Container(
+                              width: 8,
+                              height: 8,
+                              margin: const EdgeInsets.symmetric(horizontal: 4),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: _currentNewsIndex == entry.key
+                                    ? Colors.green
+                                    : Colors.grey.shade300,
+                              ),
+                            ),
+                          );
+                        }).toList(),
                       ),
                     ],
                   ),
                   const SizedBox(height: 32),
 
-                  // Son ilanlar
+                  // Güncel Fiyatlar
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.only(left: 8, bottom: 16),
+                        child: Text(
+                          'Güncel Fiyatlar',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      _buildPriceSection('Gübre Fiyatları', fertilizers),
+                      const SizedBox(height: 24),
+                      _buildPriceSection('Akaryakıt Fiyatları', fuelPrices),
+                    ],
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // Son İlanlar
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -204,7 +452,7 @@ class _HomePageState extends State<HomePage> {
                           TextButton(
                             onPressed: () {
                               setState(() {
-                                _selectedIndex = 1;
+                                _selectedIndex = 1; // İlanlar sekmesine geç
                               });
                             },
                             style: TextButton.styleFrom(
@@ -291,37 +539,35 @@ class _HomePageState extends State<HomePage> {
           ProfilePage(userEmail: widget.userEmail),
         ],
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) {
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: (index) {
           setState(() {
             _selectedIndex = index;
           });
         },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: Colors.green,
+        unselectedItemColor: Colors.grey,
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home),
             label: 'Ana Sayfa',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.shopping_bag_outlined),
-            selectedIcon: Icon(Icons.shopping_bag),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.list_alt),
             label: 'İlanlar',
           ),
-          NavigationDestination(
+          BottomNavigationBarItem(
             icon: Icon(Icons.add_circle_outline),
-            selectedIcon: Icon(Icons.add_circle),
             label: 'İlan Ekle',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.message_outlined),
-            selectedIcon: Icon(Icons.message),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.message),
             label: 'Mesajlar',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person),
             label: 'Profil',
           ),
         ],
@@ -415,6 +661,14 @@ class AdvertCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       clipBehavior: Clip.antiAlias,
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: advertisement.category.color.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
       child: InkWell(
         onTap: () {
           Navigator.push(
@@ -430,108 +684,128 @@ class AdvertCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (advertisement.imageUrls.isNotEmpty)
-              AspectRatio(
-                aspectRatio: 16 / 9,
-                child: Image.asset(
-                  advertisement.imageUrls.first,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      color: Colors.grey[300],
-                      child: const Icon(Icons.image_not_supported, size: 50),
-                    );
-                  },
-                ),
-              ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              advertisement.title,
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              advertisement.category.displayName,
-                              style: TextStyle(
-                                color: Theme.of(context).primaryColor,
-                              ),
-                            ),
-                          ],
+            Stack(
+              children: [
+                if (advertisement.imageUrls.isNotEmpty)
+                  AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: Image.asset(
+                      advertisement.imageUrls.first,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: Colors.grey[300],
+                          child: const Icon(Icons.image_not_supported, size: 50),
+                        );
+                      },
+                    ),
+                  ),
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: advertisement.category.color.withOpacity(0.9),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          advertisement.category.icon,
+                          color: Colors.white,
+                          size: 16,
                         ),
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            '${advertisement.price.toStringAsFixed(2)} ₺/${advertisement.unit.displayName}',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Theme.of(context).primaryColor,
-                            ),
+                        const SizedBox(width: 4),
+                        Text(
+                          advertisement.category.displayName,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
                           ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                if (advertisement.isOrganic)
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.9),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.eco,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                          SizedBox(width: 4),
                           Text(
-                            '${advertisement.quantity} ${advertisement.unit.displayName}',
-                            style: const TextStyle(
-                              color: Colors.grey,
+                            'Organik',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ],
                       ),
-                    ],
+                    ),
                   ),
-                  const SizedBox(height: 8),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    advertisement.title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${advertisement.price.toStringAsFixed(2)} ₺/${advertisement.unit.displayName}',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Theme.of(context).primaryColor,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
                   Row(
                     children: [
-                      const Icon(Icons.location_on, size: 16, color: Colors.grey),
-                      const SizedBox(width: 4),
-                      Text(
-                        advertisement.location,
-                        style: const TextStyle(color: Colors.grey),
+                      Icon(
+                        Icons.location_on,
+                        size: 14,
+                        color: Colors.grey[600],
                       ),
-                      const Spacer(),
-                      if (advertisement.isOrganic)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          advertisement.location,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
                           ),
-                          decoration: BoxDecoration(
-                            color: Colors.green.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Row(
-                            children: [
-                              Icon(
-                                Icons.eco,
-                                size: 16,
-                                color: Colors.green,
-                              ),
-                              SizedBox(width: 4),
-                              Text(
-                                'Organik',
-                                style: TextStyle(
-                                  color: Colors.green,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
+                      ),
                     ],
                   ),
                 ],
