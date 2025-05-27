@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'advertisement.dart';
 
 enum UserType {
   farmer('Çiftçi'),
@@ -339,11 +340,56 @@ class UserRepository {
     if (_users == null) return;
     final user = findUserByEmail(email);
     if (user != null) {
+      // Update total adverts count
+      final userAdverts = AdvertRepository.getUserAdverts(user.id);
+      profile = UserProfile(
+        phoneNumber: profile.phoneNumber,
+        city: profile.city,
+        district: profile.district,
+        detailedAddress: profile.detailedAddress,
+        companyName: profile.companyName,
+        taxNumber: profile.taxNumber,
+        about: profile.about,
+        profileImage: profile.profileImage,
+        createdAt: profile.createdAt,
+        favorites: profile.favorites,
+        rating: profile.rating,
+        ratingCount: profile.ratingCount,
+        totalAdverts: userAdverts.length,
+        isActive: profile.isActive,
+      );
       user.profile = profile;
       await _saveUsers();
       print('Profil güncellendi: ${user.email}');
     } else {
       print('Kullanıcı bulunamadı: $email');
+    }
+  }
+
+  // Kullanıcı istatistiklerini güncelle
+  static Future<void> updateUserStats(String userId) async {
+    if (_users == null) return;
+    final user = _users!.firstWhere((u) => u.id == userId, orElse: () => _users![0]);
+    if (user != null && user.profile != null) {
+      final userAdverts = AdvertRepository.getUserAdverts(userId);
+      final profile = UserProfile(
+        phoneNumber: user.profile!.phoneNumber,
+        city: user.profile!.city,
+        district: user.profile!.district,
+        detailedAddress: user.profile!.detailedAddress,
+        companyName: user.profile!.companyName,
+        taxNumber: user.profile!.taxNumber,
+        about: user.profile!.about,
+        profileImage: user.profile!.profileImage,
+        createdAt: user.profile!.createdAt,
+        favorites: user.profile!.favorites,
+        rating: user.profile!.rating,
+        ratingCount: user.profile!.ratingCount,
+        totalAdverts: userAdverts.length,
+        isActive: user.profile!.isActive,
+      );
+      user.profile = profile;
+      await _saveUsers();
     }
   }
 
@@ -355,8 +401,8 @@ class UserRepository {
     return hasProfile;
   }
 
-  static void toggleFavorite(String email, String advertId) {
-    if (_users == null) return;
+  static bool toggleFavorite(String email, String advertId) {
+    if (_users == null) return false;
     final user = findUserByEmail(email);
     if (user?.profile != null) {
       final favorites = user!.profile!.favorites;
@@ -365,8 +411,10 @@ class UserRepository {
       } else {
         favorites.add(advertId);
       }
-      _saveUsers();
+      _saveUsers(); // Hemen kaydet
+      return favorites.contains(advertId); // Yeni durumu döndür
     }
+    return false;
   }
 
   static List<String> getUserFavorites(String email) {

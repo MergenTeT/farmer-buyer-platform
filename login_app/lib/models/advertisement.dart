@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'advert_filter.dart';
+import 'user_model.dart';
 
 enum ProductCategory {
   fruit('Meyve', Color(0xFFE57373), Icons.apple), // Kırmızımsı
@@ -105,7 +106,7 @@ class AdvertRepository {
   static final List<Advertisement> _adverts = [
     Advertisement(
       id: '1',
-      userId: 'user1',
+      userId: '1', // Test Çiftçi
       title: 'Taze Organik Domates',
       description: 'Antalya\'dan taze organik domates. Özenle yetiştirilmiş.',
       price: 24.99,
@@ -122,7 +123,7 @@ class AdvertRepository {
     ),
     Advertisement(
       id: '2',
-      userId: 'user2',
+      userId: '2', // Test Alıcı
       title: 'Yerli Buğday',
       description: 'Konya\'dan yerli buğday. Yüksek protein değeri.',
       price: 15.50,
@@ -139,7 +140,7 @@ class AdvertRepository {
     ),
     Advertisement(
       id: '3',
-      userId: 'user3',
+      userId: '1',
       title: 'Organik Çilek',
       description: 'Aydın\'dan taze organik çilek. Doğal tadıyla.',
       price: 45.00,
@@ -156,7 +157,7 @@ class AdvertRepository {
     ),
     Advertisement(
       id: '4',
-      userId: 'user1',
+      userId: '2',
       title: 'Kuru Fasulye',
       description: 'Bolu\'dan yerli kuru fasulye. Yüksek kalite.',
       price: 35.75,
@@ -173,7 +174,7 @@ class AdvertRepository {
     ),
     Advertisement(
       id: '5',
-      userId: 'user4',
+      userId: '1',
       title: 'Organik Patates',
       description: 'Niğde\'den organik patates. Taze hasat.',
       price: 18.50,
@@ -190,7 +191,7 @@ class AdvertRepository {
     ),
     Advertisement(
       id: '6',
-      userId: 'user2',
+      userId: '2',
       title: 'Taze Üzüm',
       description: 'Manisa\'dan taze üzüm. Sofralık ve şaraplık çeşitler.',
       price: 28.90,
@@ -207,7 +208,7 @@ class AdvertRepository {
     ),
     Advertisement(
       id: '7',
-      userId: 'user5',
+      userId: '1',
       title: 'Organik Mercimek',
       description: 'Şanlıurfa\'dan organik kırmızı mercimek.',
       price: 42.00,
@@ -224,7 +225,7 @@ class AdvertRepository {
     ),
     Advertisement(
       id: '8',
-      userId: 'user3',
+      userId: '2',
       title: 'Taze Mısır',
       description: 'Samsun\'dan taze mısır. Doğal yetiştirilmiş.',
       price: 12.75,
@@ -241,7 +242,7 @@ class AdvertRepository {
     ),
     Advertisement(
       id: '9',
-      userId: 'user4',
+      userId: '1',
       title: 'Organik Elma',
       description: 'Isparta\'dan organik elma. Taze ve sulu.',
       price: 32.50,
@@ -258,7 +259,7 @@ class AdvertRepository {
     ),
     Advertisement(
       id: '10',
-      userId: 'user1',
+      userId: '2',
       title: 'Taze Biber',
       description: 'Bursa\'dan taze biber. Közlemelik ve dolmalık.',
       price: 27.90,
@@ -275,7 +276,7 @@ class AdvertRepository {
     ),
     Advertisement(
       id: '11',
-      userId: 'user5',
+      userId: '1',
       title: 'Organik Nohut',
       description: 'Mersin\'den organik nohut. İri taneli.',
       price: 38.50,
@@ -292,7 +293,7 @@ class AdvertRepository {
     ),
     Advertisement(
       id: '12',
-      userId: 'user2',
+      userId: '2',
       title: 'Taze Portakal',
       description: 'Adana\'dan taze portakal. Vitamin deposu.',
       price: 22.75,
@@ -309,7 +310,7 @@ class AdvertRepository {
     ),
     Advertisement(
       id: '13',
-      userId: 'user3',
+      userId: '1',
       title: 'Organik Pirinç',
       description: 'Edirne\'den organik pirinç. Baldo çeşidi.',
       price: 55.00,
@@ -326,7 +327,7 @@ class AdvertRepository {
     ),
     Advertisement(
       id: '14',
-      userId: 'user4',
+      userId: '2',
       title: 'Taze Patlıcan',
       description: 'Mersin\'den taze patlıcan. Kızartmalık ve közlemelik.',
       price: 29.90,
@@ -343,7 +344,7 @@ class AdvertRepository {
     ),
     Advertisement(
       id: '15',
-      userId: 'user5',
+      userId: '1',
       title: 'Organik Barbunya',
       description: 'Trabzon\'dan organik barbunya. Taze hasat.',
       price: 44.50,
@@ -437,6 +438,8 @@ class AdvertRepository {
   // İlan ekle
   static void addAdvert(Advertisement advert) {
     _adverts.add(advert);
+    // Kullanıcı istatistiklerini güncelle
+    UserRepository.updateUserStats(advert.userId);
   }
 
   // İlan güncelle
@@ -471,6 +474,48 @@ class AdvertRepository {
         isOrganic: advert.isOrganic,
         certificateUrl: advert.certificateUrl,
       );
+      // Update user stats
+      UserRepository.updateUserStats(advert.userId);
+    }
+  }
+
+  // İlanı aktifleştir
+  static void activateAdvert(String id) {
+    final index = _adverts.indexWhere((ad) => ad.id == id);
+    if (index != -1) {
+      final advert = _adverts[index];
+      _adverts[index] = Advertisement(
+        id: advert.id,
+        userId: advert.userId,
+        title: advert.title,
+        category: advert.category,
+        price: advert.price,
+        unit: advert.unit,
+        quantity: advert.quantity,
+        city: advert.city,
+        district: advert.district,
+        description: advert.description,
+        imageUrls: advert.imageUrls,
+        createdAt: advert.createdAt,
+        availableFrom: advert.availableFrom,
+        availableTo: advert.availableTo,
+        isActive: true,
+        isOrganic: advert.isOrganic,
+        certificateUrl: advert.certificateUrl,
+      );
+      // Update user stats
+      UserRepository.updateUserStats(advert.userId);
+    }
+  }
+
+  // İlanı sil
+  static void deleteAdvert(String id) {
+    final index = _adverts.indexWhere((ad) => ad.id == id);
+    if (index != -1) {
+      final advert = _adverts[index];
+      _adverts.removeAt(index);
+      // Update user stats
+      UserRepository.updateUserStats(advert.userId);
     }
   }
 

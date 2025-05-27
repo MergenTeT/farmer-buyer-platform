@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:share_plus/share_plus.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
+import 'messages_page.dart';
 
 class AdvertDetailPage extends StatefulWidget {
   final Advertisement advertisement;
@@ -40,22 +41,27 @@ class _AdvertDetailPageState extends State<AdvertDetailPage> {
     super.dispose();
   }
 
-  void _loadUsers() {
+  void _loadUsers() async {
     try {
+      await UserRepository.init(); // Ensure repository is initialized
       _advertOwner = UserRepository.findUserById(widget.advertisement.userId);
       _currentUser = UserRepository.findUserByEmail(widget.currentUserEmail);
       if (_currentUser != null) {
         _isFavorite = UserRepository.getUserFavorites(widget.currentUserEmail)
             .contains(widget.advertisement.id);
       }
-      setState(() {});
+      if (mounted) {
+        setState(() {});
+      }
     } catch (e) {
       print('Kullanıcı yükleme hatası: $e');
-      // Hata durumunda varsayılan değerler
-      _advertOwner = null;
-      _currentUser = null;
-      _isFavorite = false;
-      setState(() {});
+      if (mounted) {
+        setState(() {
+          _advertOwner = null;
+          _currentUser = null;
+          _isFavorite = false;
+        });
+      }
     }
   }
 
@@ -71,21 +77,51 @@ class _AdvertDetailPageState extends State<AdvertDetailPage> {
     }
   }
 
-  void _sendMessage() {
-    if (_currentUser != null && _advertOwner != null) {
-      MessageRepository.sendMessage(
-        senderId: _currentUser!.id,
-        receiverId: _advertOwner!.id,
-        advertId: widget.advertisement.id,
-        content: '${widget.advertisement.title} ilanınız hakkında bilgi almak istiyorum.',
+  void _sendMessage() async {
+    if (_advertOwner == null) return;
+
+    try {
+      // Önce repository'yi başlat
+      await MessageRepository.init();
+
+      // Mevcut sohbetleri kontrol et
+      final userChats = await MessageRepository.getUserChats(_currentUser!.id);
+      final existingChat = userChats.firstWhere(
+        (chat) => chat.advertId == widget.advertisement.id &&
+            ((chat.user1Id == _currentUser!.id && chat.user2Id == _advertOwner!.id) ||
+             (chat.user1Id == _advertOwner!.id && chat.user2Id == _currentUser!.id)),
+        orElse: () => Chat(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          user1Id: _currentUser!.id,
+          user2Id: _advertOwner!.id,
+          advertId: widget.advertisement.id,
+          lastMessageTime: DateTime.now(),
+          messages: [],
+        ),
       );
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Mesajınız gönderildi')),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Mesaj gönderilemedi. Lütfen daha sonra tekrar deneyin.')),
-      );
+
+      if (mounted) {
+        // Direkt olarak chat sayfasına yönlendir
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ChatPage(
+              chat: existingChat,
+              currentUser: _currentUser!,
+              otherUser: _advertOwner!,
+              advertisement: widget.advertisement,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sohbet başlatılırken bir hata oluştu. Lütfen tekrar deneyin.'),
+          ),
+        );
+      }
     }
   }
 
@@ -248,12 +284,11 @@ class _AdvertDetailPageState extends State<AdvertDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Null safety için erken kontrol
-    final advertOwner = _advertOwner;
-    final currentUser = _currentUser;
-    final bool isOwner = advertOwner != null && currentUser != null && advertOwner.id == currentUser.id;
-    final bool hasProfile = advertOwner?.profile != null;
-    final bool isActive = hasProfile && (advertOwner!.profile!.isActive);
+    if (_advertOwner == null) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -266,6 +301,14 @@ class _AdvertDetailPageState extends State<AdvertDetailPage> {
               color: _isFavorite ? Colors.red : null,
             ),
             onPressed: _toggleFavorite,
+          ),
+          IconButton(
+            icon: const Icon(Icons.share),
+            onPressed: () {
+              if (widget.advertisement.imageUrls.isNotEmpty) {
+                _shareImage(widget.advertisement.imageUrls[_currentImageIndex]);
+              }
+            },
           ),
         ],
       ),
@@ -477,7 +520,7 @@ class _AdvertDetailPageState extends State<AdvertDetailPage> {
                   const SizedBox(height: 24),
 
                   // Satıcı bilgileri
-                  if (advertOwner != null) ...[
+                  if (_advertOwner != null) ...[
                     const Text(
                       'Satıcı Bilgileri',
                       style: TextStyle(
@@ -516,8 +559,8 @@ class _AdvertDetailPageState extends State<AdvertDetailPage> {
                                   ),
                                   child: Center(
                                     child: Text(
-                                      advertOwner.name.isNotEmpty 
-                                          ? advertOwner.name.substring(0, 1).toUpperCase()
+                                      _advertOwner!.name.isNotEmpty 
+                                          ? _advertOwner!.name.substring(0, 1).toUpperCase()
                                           : '?',
                                       style: TextStyle(
                                         color: Theme.of(context).primaryColor,
@@ -534,7 +577,7 @@ class _AdvertDetailPageState extends State<AdvertDetailPage> {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        advertOwner.name,
+                                        _advertOwner!.name,
                                         style: const TextStyle(
                                           fontSize: 18,
                                           fontWeight: FontWeight.bold,
@@ -547,15 +590,15 @@ class _AdvertDetailPageState extends State<AdvertDetailPage> {
                                             width: 8,
                                             height: 8,
                                             decoration: BoxDecoration(
-                                              color: isActive ? Colors.green : Colors.grey,
+                                              color: _advertOwner!.profile!.isActive ? Colors.green : Colors.grey,
                                               shape: BoxShape.circle,
                                             ),
                                           ),
                                           const SizedBox(width: 6),
                                           Text(
-                                            isActive ? 'Aktif' : 'Pasif',
+                                            _advertOwner!.profile!.isActive ? 'Aktif' : 'Pasif',
                                             style: TextStyle(
-                                              color: isActive ? Colors.grey : Colors.grey[400],
+                                              color: _advertOwner!.profile!.isActive ? Colors.grey : Colors.grey[400],
                                               fontSize: 14,
                                             ),
                                           ),
@@ -565,7 +608,7 @@ class _AdvertDetailPageState extends State<AdvertDetailPage> {
                                   ),
                                 ),
                                 // Değerlendirme
-                                if (hasProfile) ...[
+                                if (_advertOwner!.profile != null) ...[
                                   Column(
                                     crossAxisAlignment: CrossAxisAlignment.end,
                                     children: [
@@ -578,7 +621,7 @@ class _AdvertDetailPageState extends State<AdvertDetailPage> {
                                           ),
                                           const SizedBox(width: 4),
                                           Text(
-                                            (advertOwner.profile!.rating).toStringAsFixed(1),
+                                            (_advertOwner!.profile!.rating).toStringAsFixed(1),
                                             style: TextStyle(
                                               fontSize: 16,
                                               fontWeight: FontWeight.bold,
@@ -589,7 +632,7 @@ class _AdvertDetailPageState extends State<AdvertDetailPage> {
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
-                                        '${advertOwner.profile!.ratingCount} değerlendirme',
+                                        '${_advertOwner!.profile!.ratingCount} değerlendirme',
                                         style: const TextStyle(
                                           color: Colors.grey,
                                           fontSize: 12,
@@ -603,7 +646,7 @@ class _AdvertDetailPageState extends State<AdvertDetailPage> {
                           ),
                           const Divider(height: 1),
                           // Alt kısım - İstatistikler
-                          if (hasProfile) ...[
+                          if (_advertOwner!.profile != null) ...[
                             Padding(
                               padding: const EdgeInsets.all(16),
                               child: Row(
@@ -611,17 +654,17 @@ class _AdvertDetailPageState extends State<AdvertDetailPage> {
                                 children: [
                                   _buildStatItem(
                                     icon: Icons.shopping_bag_outlined,
-                                    value: '${advertOwner.profile!.totalAdverts}',
+                                    value: '${_advertOwner!.profile!.totalAdverts}',
                                     label: 'Toplam İlan',
                                   ),
                                   _buildStatItem(
                                     icon: Icons.access_time,
-                                    value: advertOwner.profile!.getMembershipDuration(),
+                                    value: _advertOwner!.profile!.getMembershipDuration(),
                                     label: 'Üyelik',
                                   ),
                                   _buildStatItem(
                                     icon: Icons.location_on_outlined,
-                                    value: advertOwner.profile!.city,
+                                    value: _advertOwner!.profile!.city,
                                     label: 'Konum',
                                   ),
                                 ],
@@ -630,12 +673,12 @@ class _AdvertDetailPageState extends State<AdvertDetailPage> {
                           ],
                           const Divider(height: 1),
                           // İletişim butonları
-                          if (!isOwner) ...[
+                          if (_advertOwner!.id != _currentUser?.id) ...[
                             Padding(
                               padding: const EdgeInsets.all(16),
                               child: Row(
                                 children: [
-                                  if (hasProfile && advertOwner.profile!.phoneNumber.isNotEmpty)
+                                  if (_advertOwner!.profile != null && _advertOwner!.profile!.phoneNumber.isNotEmpty)
                                     Expanded(
                                       child: OutlinedButton.icon(
                                         onPressed: () {
@@ -648,7 +691,7 @@ class _AdvertDetailPageState extends State<AdvertDetailPage> {
                                         ),
                                       ),
                                     ),
-                                  if (hasProfile && advertOwner.profile!.phoneNumber.isNotEmpty)
+                                  if (_advertOwner!.profile != null && _advertOwner!.profile!.phoneNumber.isNotEmpty)
                                     const SizedBox(width: 12),
                                   Expanded(
                                     child: ElevatedButton.icon(
@@ -676,25 +719,47 @@ class _AdvertDetailPageState extends State<AdvertDetailPage> {
           ],
         ),
       ),
-      bottomNavigationBar: (!isOwner && advertOwner != null)
-          ? SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: ElevatedButton(
-                  onPressed: _sendMessage,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    backgroundColor: Theme.of(context).primaryColor,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text(
-                    'Satıcıya Mesaj Gönder',
-                    style: TextStyle(fontSize: 16),
-                  ),
+      bottomNavigationBar: _advertOwner?.id != _currentUser?.id && _advertOwner != null ? Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 4,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                '${widget.advertisement.price.toStringAsFixed(2)} ₺/${widget.advertisement.unit.displayName}',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-            )
-          : null,
+            ),
+            ElevatedButton.icon(
+              onPressed: _currentUser != null ? _sendMessage : () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Mesaj göndermek için giriş yapmalısınız')),
+                );
+              },
+              icon: const Icon(Icons.message),
+              label: const Text('Mesaj Gönder'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ) : null,
     );
   }
 

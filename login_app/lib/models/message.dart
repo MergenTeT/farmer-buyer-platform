@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+
 class Message {
   final String id;
   final String senderId;
@@ -16,6 +19,31 @@ class Message {
     required this.timestamp,
     this.isRead = false,
   });
+
+  // JSON dönüşümleri
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'senderId': senderId,
+      'receiverId': receiverId,
+      'advertId': advertId,
+      'content': content,
+      'timestamp': timestamp.toIso8601String(),
+      'isRead': isRead,
+    };
+  }
+
+  factory Message.fromJson(Map<String, dynamic> json) {
+    return Message(
+      id: json['id'],
+      senderId: json['senderId'],
+      receiverId: json['receiverId'],
+      advertId: json['advertId'],
+      content: json['content'],
+      timestamp: DateTime.parse(json['timestamp']),
+      isRead: json['isRead'] ?? false,
+    );
+  }
 }
 
 class Chat {
@@ -23,7 +51,7 @@ class Chat {
   final String user1Id;
   final String user2Id;
   final String advertId;
-  final DateTime lastMessageTime;
+  DateTime lastMessageTime;
   final List<Message> messages;
 
   Chat({
@@ -35,6 +63,31 @@ class Chat {
     required this.messages,
   });
 
+  // JSON dönüşümleri
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'user1Id': user1Id,
+      'user2Id': user2Id,
+      'advertId': advertId,
+      'lastMessageTime': lastMessageTime.toIso8601String(),
+      'messages': messages.map((m) => m.toJson()).toList(),
+    };
+  }
+
+  factory Chat.fromJson(Map<String, dynamic> json) {
+    return Chat(
+      id: json['id'],
+      user1Id: json['user1Id'],
+      user2Id: json['user2Id'],
+      advertId: json['advertId'],
+      lastMessageTime: DateTime.parse(json['lastMessageTime']),
+      messages: (json['messages'] as List)
+          .map((m) => Message.fromJson(m))
+          .toList(),
+    );
+  }
+
   // Sohbetin diğer kullanıcısını bulma
   String getOtherUserId(String currentUserId) {
     return currentUserId == user1Id ? user2Id : user1Id;
@@ -42,17 +95,65 @@ class Chat {
 }
 
 class MessageRepository {
-  static final List<Chat> _chats = [];
-  static final Map<String, List<String>> _userChats = {}; // userId -> chatIds
+  static const String _chatsKey = 'chats';
+  static const String _userChatsKey = 'user_chats';
+  static List<Chat> _chats = [];
+  static Map<String, List<String>> _userChats = {};
+  static SharedPreferences? _prefs;
+
+  // SharedPreferences'ı başlat
+  static Future<void> init() async {
+    _prefs = await SharedPreferences.getInstance();
+    await _loadData();
+  }
+
+  // Verileri yükle
+  static Future<void> _loadData() async {
+    final prefs = _prefs;
+    if (prefs == null) return;
+
+    // Sohbetleri yükle
+    final chatsJson = prefs.getString(_chatsKey);
+    if (chatsJson != null) {
+      final chatsList = jsonDecode(chatsJson) as List;
+      _chats = chatsList.map((json) => Chat.fromJson(json)).toList();
+    }
+
+    // Kullanıcı sohbetlerini yükle
+    final userChatsJson = prefs.getString(_userChatsKey);
+    if (userChatsJson != null) {
+      final userChatsMap = jsonDecode(userChatsJson) as Map<String, dynamic>;
+      _userChats = Map.fromEntries(
+        userChatsMap.entries.map(
+          (e) => MapEntry(e.key, List<String>.from(e.value)),
+        ),
+      );
+    }
+  }
+
+  // Verileri kaydet
+  static Future<void> _saveData() async {
+    final prefs = _prefs;
+    if (prefs == null) return;
+
+    // Sohbetleri kaydet
+    final chatsJson = jsonEncode(_chats.map((chat) => chat.toJson()).toList());
+    await prefs.setString(_chatsKey, chatsJson);
+
+    // Kullanıcı sohbetlerini kaydet
+    final userChatsJson = jsonEncode(_userChats);
+    await prefs.setString(_userChatsKey, userChatsJson);
+  }
 
   // Yeni mesaj gönderme
-  static Message sendMessage({
+  static Future<Message> sendMessage({
     required String senderId,
     required String receiverId,
     required String advertId,
     required String content,
-  }) {
-    // Yeni mesaj oluştur
+  }) async {
+    await init(); // Repository'yi başlat
+
     final message = Message(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       senderId: senderId,
@@ -62,10 +163,8 @@ class MessageRepository {
       timestamp: DateTime.now(),
     );
 
-    // Mevcut sohbeti bul veya yeni oluştur
     String? chatId = _findChatId(senderId, receiverId, advertId);
     if (chatId == null) {
-      // Yeni sohbet oluştur
       final chat = Chat(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         user1Id: senderId,
@@ -77,20 +176,21 @@ class MessageRepository {
       _chats.add(chat);
       chatId = chat.id;
 
-      // Kullanıcı sohbet eşleşmelerini güncelle
       _addUserChat(senderId, chatId);
       _addUserChat(receiverId, chatId);
     } else {
-      // Mevcut sohbete mesaj ekle
       final chat = _chats.firstWhere((c) => c.id == chatId);
       chat.messages.add(message);
+      chat.lastMessageTime = message.timestamp;
     }
 
+    await _saveData(); // Değişiklikleri kaydet
     return message;
   }
 
   // Kullanıcının tüm sohbetlerini getir
-  static List<Chat> getUserChats(String userId) {
+  static Future<List<Chat>> getUserChats(String userId) async {
+    await init(); // Repository'yi başlat
     final chatIds = _userChats[userId] ?? [];
     return _chats
         .where((chat) => chatIds.contains(chat.id))
@@ -99,13 +199,15 @@ class MessageRepository {
   }
 
   // Belirli bir sohbetin mesajlarını getir
-  static List<Message> getChatMessages(String chatId) {
+  static Future<List<Message>> getChatMessages(String chatId) async {
+    await init(); // Repository'yi başlat
     final chat = _chats.firstWhere((c) => c.id == chatId);
     return chat.messages..sort((a, b) => a.timestamp.compareTo(b.timestamp));
   }
 
   // Okunmamış mesaj sayısını getir
-  static int getUnreadMessageCount(String userId) {
+  static Future<int> getUnreadMessageCount(String userId) async {
+    await init(); // Repository'yi başlat
     int count = 0;
     final userChatIds = _userChats[userId] ?? [];
     

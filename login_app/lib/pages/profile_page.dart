@@ -55,9 +55,12 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
     super.dispose();
   }
 
-  void _loadUserData() {
+  void _loadUserData() async {
+    await UserRepository.init(); // Ensure repository is initialized
     final user = UserRepository.findUserByEmail(widget.userEmail);
     if (user != null) {
+      // Update user stats before loading
+      await UserRepository.updateUserStats(user.id);
       setState(() {
         _user = user;
         _userAdverts = AdvertRepository.getUserAdverts(user.id);
@@ -269,6 +272,81 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
         _districtController.text = selectedDistrict;
       });
     }
+  }
+
+  void _showAdvertOptions(Advertisement advert) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit),
+              title: const Text('Düzenle'),
+              onTap: () {
+                Navigator.pop(context);
+                // TODO: Navigate to edit advertisement page
+              },
+            ),
+            ListTile(
+              leading: Icon(
+                advert.isActive ? Icons.visibility_off : Icons.visibility,
+                color: advert.isActive ? Colors.red : Colors.green,
+              ),
+              title: Text(
+                advert.isActive ? 'Pasife Al' : 'Aktife Al',
+                style: TextStyle(
+                  color: advert.isActive ? Colors.red : Colors.green,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                setState(() {
+                  if (advert.isActive) {
+                    AdvertRepository.deactivateAdvert(advert.id);
+                  } else {
+                    AdvertRepository.activateAdvert(advert.id);
+                  }
+                  _loadUserData(); // Reload user data
+                });
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete, color: Colors.red),
+              title: const Text('Sil', style: TextStyle(color: Colors.red)),
+              onTap: () {
+                Navigator.pop(context);
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('İlanı Sil'),
+                    content: const Text('Bu ilanı silmek istediğinizden emin misiniz?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('İptal'),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          setState(() {
+                            AdvertRepository.deleteAdvert(advert.id);
+                            _loadUserData(); // Reload user data
+                          });
+                        },
+                        child: const Text('Sil', style: TextStyle(color: Colors.red)),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -519,7 +597,20 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
   Widget _buildAdvertsTab() {
     if (_userAdverts.isEmpty) {
       return const Center(
-        child: Text('Henüz ilan eklenmemiş'),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.shopping_bag_outlined, size: 64, color: Colors.grey),
+            SizedBox(height: 16),
+            Text(
+              'Henüz ilan eklenmemiş',
+              style: TextStyle(
+                fontSize: 18,
+                color: Colors.grey,
+              ),
+            ),
+          ],
+        ),
       );
     }
 
@@ -527,38 +618,74 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
       itemCount: _userAdverts.length,
       itemBuilder: (context, index) {
         final advert = _userAdverts[index];
-        return ListTile(
-          leading: Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              image: DecorationImage(
-                image: advert.imageUrls.isNotEmpty
-                    ? advert.imageUrls[0].startsWith('assets/')
-                        ? AssetImage(advert.imageUrls[0]) as ImageProvider
-                        : FileImage(File(advert.imageUrls[0]))
-                    : const AssetImage('assets/images/placeholder.jpg') as ImageProvider,
-                fit: BoxFit.cover,
+        return Card(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: ListTile(
+            leading: Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                image: DecorationImage(
+                  image: advert.imageUrls.isNotEmpty
+                      ? advert.imageUrls[0].startsWith('assets/')
+                          ? AssetImage(advert.imageUrls[0]) as ImageProvider
+                          : FileImage(File(advert.imageUrls[0]))
+                      : const AssetImage('assets/images/placeholder.jpg') as ImageProvider,
+                  fit: BoxFit.cover,
+                ),
               ),
             ),
-          ),
-          title: Text(advert.title),
-          subtitle: Text(
-            '${advert.price.toStringAsFixed(2)} ₺/${advert.unit.displayName}',
-          ),
-          trailing: Chip(
-            label: Text(
-              advert.isActive ? 'Aktif' : 'Pasif',
-              style: TextStyle(
-                color: advert.isActive ? Colors.green : Colors.grey,
-              ),
+            title: Text(advert.title),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${advert.price.toStringAsFixed(2)} ₺/${advert.unit.displayName}',
+                  style: const TextStyle(
+                    color: Colors.green,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  advert.location,
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 12,
+                  ),
+                ),
+              ],
             ),
-            backgroundColor: (advert.isActive ? Colors.green : Colors.grey).withOpacity(0.1),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Chip(
+                  label: Text(
+                    advert.isActive ? 'Aktif' : 'Pasif',
+                    style: TextStyle(
+                      color: advert.isActive ? Colors.green : Colors.grey,
+                      fontSize: 12,
+                    ),
+                  ),
+                  backgroundColor: (advert.isActive ? Colors.green : Colors.grey).withOpacity(0.1),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.more_vert),
+                  onPressed: () => _showAdvertOptions(advert),
+                ),
+              ],
+            ),
+            onTap: () {
+              Navigator.pushNamed(
+                context,
+                '/advert-detail',
+                arguments: {
+                  'advertisement': advert,
+                  'userEmail': widget.userEmail,
+                },
+              );
+            },
           ),
-          onTap: () {
-            // TODO: Navigate to advert detail
-          },
         );
       },
     );
@@ -567,45 +694,92 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
   Widget _buildFavoritesTab() {
     if (_favoriteAdverts.isEmpty) {
       return const Center(
-        child: Text('Henüz favori ilan eklenmemiş'),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.favorite_border, size: 64, color: Colors.grey),
+            SizedBox(height: 16),
+            Text(
+              'Henüz favori ilan eklenmemiş',
+              style: TextStyle(
+                fontSize: 18,
+                color: Colors.grey,
+              ),
+            ),
+          ],
+        ),
       );
     }
 
-    return ListView.builder(
-      itemCount: _favoriteAdverts.length,
-      itemBuilder: (context, index) {
-        final advert = _favoriteAdverts[index];
-        return ListTile(
-          leading: Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              image: DecorationImage(
-                image: advert.imageUrls.isNotEmpty
-                    ? advert.imageUrls[0].startsWith('assets/')
-                        ? AssetImage(advert.imageUrls[0]) as ImageProvider
-                        : FileImage(File(advert.imageUrls[0]))
-                    : const AssetImage('assets/images/placeholder.jpg') as ImageProvider,
-                fit: BoxFit.cover,
-              ),
-            ),
-          ),
-          title: Text(advert.title),
-          subtitle: Text(
-            '${advert.price.toStringAsFixed(2)} ₺/${advert.unit.displayName}',
-          ),
-          trailing: IconButton(
-            icon: const Icon(Icons.favorite, color: Colors.red),
-            onPressed: () {
-              // TODO: Implement remove from favorites
-            },
-          ),
-          onTap: () {
-            // TODO: Navigate to advert detail
-          },
-        );
+    return RefreshIndicator(
+      onRefresh: () async {
+        _loadUserData();
       },
+      child: ListView.builder(
+        itemCount: _favoriteAdverts.length,
+        itemBuilder: (context, index) {
+          final advert = _favoriteAdverts[index];
+          return Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: ListTile(
+              leading: Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  image: DecorationImage(
+                    image: advert.imageUrls.isNotEmpty
+                        ? advert.imageUrls[0].startsWith('assets/')
+                            ? AssetImage(advert.imageUrls[0]) as ImageProvider
+                            : FileImage(File(advert.imageUrls[0]))
+                        : const AssetImage('assets/images/placeholder.jpg') as ImageProvider,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+              title: Text(advert.title),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${advert.price.toStringAsFixed(2)} ₺/${advert.unit.displayName}',
+                    style: const TextStyle(
+                      color: Colors.green,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    advert.location,
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+              trailing: IconButton(
+                icon: const Icon(Icons.favorite, color: Colors.red),
+                onPressed: () {
+                  setState(() {
+                    UserRepository.toggleFavorite(widget.userEmail, advert.id);
+                    _loadUserData(); // Listeyi hemen güncelle
+                  });
+                },
+              ),
+              onTap: () {
+                Navigator.pushNamed(
+                  context,
+                  '/advert-detail',
+                  arguments: {
+                    'advertisement': advert,
+                    'userEmail': widget.userEmail,
+                  },
+                ).then((_) => _loadUserData()); // Detay sayfasından dönünce güncelle
+              },
+            ),
+          );
+        },
+      ),
     );
   }
 
