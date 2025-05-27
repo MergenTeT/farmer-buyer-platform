@@ -55,7 +55,7 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
     super.dispose();
   }
 
-  void _loadUserData() async {
+  Future<void> _loadUserData() async {
     await UserRepository.init(); // Ensure repository is initialized
     final user = UserRepository.findUserByEmail(widget.userEmail);
     if (user != null) {
@@ -363,6 +363,35 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
             icon: Icon(_isEditing ? Icons.save : Icons.edit),
             onPressed: _isEditing ? _saveProfile : _toggleEditMode,
           ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Çıkış Yap'),
+                  content: const Text('Çıkış yapmak istediğinizden emin misiniz?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('İptal'),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(context); // Dialog'u kapat
+                        Navigator.pushNamedAndRemoveUntil(
+                          context,
+                          '/',
+                          (route) => false, // Tüm sayfaları temizle
+                        );
+                      },
+                      child: const Text('Çıkış Yap', style: TextStyle(color: Colors.red)),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
         ],
         bottom: TabBar(
           controller: _tabController,
@@ -596,17 +625,25 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
 
   Widget _buildAdvertsTab() {
     if (_userAdverts.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+      return RefreshIndicator(
+        onRefresh: _loadUserData,
+        child: ListView(
           children: [
-            Icon(Icons.shopping_bag_outlined, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
-            Text(
-              'Henüz ilan eklenmemiş',
-              style: TextStyle(
-                fontSize: 18,
-                color: Colors.grey,
+            SizedBox(height: MediaQuery.of(context).size.height * 0.3),
+            const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.shopping_bag_outlined, size: 64, color: Colors.grey),
+                  SizedBox(height: 16),
+                  Text(
+                    'Henüz ilan eklenmemiş',
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -614,80 +651,83 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
       );
     }
 
-    return ListView.builder(
-      itemCount: _userAdverts.length,
-      itemBuilder: (context, index) {
-        final advert = _userAdverts[index];
-        return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: ListTile(
-            leading: Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                image: DecorationImage(
-                  image: advert.imageUrls.isNotEmpty
-                      ? advert.imageUrls[0].startsWith('assets/')
-                          ? AssetImage(advert.imageUrls[0]) as ImageProvider
-                          : FileImage(File(advert.imageUrls[0]))
-                      : const AssetImage('assets/images/placeholder.jpg') as ImageProvider,
-                  fit: BoxFit.cover,
+    return RefreshIndicator(
+      onRefresh: _loadUserData,
+      child: ListView.builder(
+        itemCount: _userAdverts.length,
+        itemBuilder: (context, index) {
+          final advert = _userAdverts[index];
+          return Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: ListTile(
+              leading: Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  image: DecorationImage(
+                    image: advert.imageUrls.isNotEmpty
+                        ? advert.imageUrls[0].startsWith('assets/')
+                            ? AssetImage(advert.imageUrls[0]) as ImageProvider
+                            : FileImage(File(advert.imageUrls[0]))
+                        : const AssetImage('assets/images/placeholder.jpg') as ImageProvider,
+                    fit: BoxFit.cover,
+                  ),
                 ),
               ),
-            ),
-            title: Text(advert.title),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${advert.price.toStringAsFixed(2)} ₺/${advert.unit.displayName}',
-                  style: const TextStyle(
-                    color: Colors.green,
-                    fontWeight: FontWeight.bold,
+              title: Text(advert.title),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${advert.price.toStringAsFixed(2)} ₺/${advert.unit.displayName}',
+                    style: const TextStyle(
+                      color: Colors.green,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-                Text(
-                  advert.location,
-                  style: TextStyle(
-                    color: Colors.grey[600],
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Chip(
-                  label: Text(
-                    advert.isActive ? 'Aktif' : 'Pasif',
+                  Text(
+                    advert.location,
                     style: TextStyle(
-                      color: advert.isActive ? Colors.green : Colors.grey,
+                      color: Colors.grey[600],
                       fontSize: 12,
                     ),
                   ),
-                  backgroundColor: (advert.isActive ? Colors.green : Colors.grey).withOpacity(0.1),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.more_vert),
-                  onPressed: () => _showAdvertOptions(advert),
-                ),
-              ],
+                ],
+              ),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Chip(
+                    label: Text(
+                      advert.isActive ? 'Aktif' : 'Pasif',
+                      style: TextStyle(
+                        color: advert.isActive ? Colors.green : Colors.grey,
+                        fontSize: 12,
+                      ),
+                    ),
+                    backgroundColor: (advert.isActive ? Colors.green : Colors.grey).withOpacity(0.1),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.more_vert),
+                    onPressed: () => _showAdvertOptions(advert),
+                  ),
+                ],
+              ),
+              onTap: () {
+                Navigator.pushNamed(
+                  context,
+                  '/advert-detail',
+                  arguments: {
+                    'advertisement': advert,
+                    'userEmail': widget.userEmail,
+                  },
+                );
+              },
             ),
-            onTap: () {
-              Navigator.pushNamed(
-                context,
-                '/advert-detail',
-                arguments: {
-                  'advertisement': advert,
-                  'userEmail': widget.userEmail,
-                },
-              );
-            },
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
